@@ -101,6 +101,10 @@ export default function App() {
   const [editingId, setEditingId] = useState(null);
   const [stampMenu, setStampMenu] = useState(null);
 
+  // Stamp dragging state
+  const [draggingStamp, setDraggingStamp] = useState(null);
+  const stampDragStart = useRef({x:0, y:0, stampX:0, stampY:0});
+
   // Triple-tap tracking for admin trigger
   const tapTimerRef = useRef(null);
   const tapCountRef = useRef(0);
@@ -162,18 +166,27 @@ export default function App() {
 
   // Simplified drag handlers
   function onCvsMD(e){ 
-    if(placing||e.button!==0||open||stampMenu) return;
+    if(placing||e.button!==0||open||stampMenu||draggingStamp) return;
     cvDrag.current=true; 
     setIsDragging(true); 
     lm.current={x:e.clientX,y:e.clientY}; 
   }
 
   function onCvsMM(e){
+    // Handle stamp dragging first
+    if(draggingStamp) {
+      onStampDragMove(e);
+      return;
+    }
+    
+    // Handle placing ghost
     if(placing){ 
       const rect=cvsRef.current.getBoundingClientRect();
       setGhost({x:e.clientX-rect.left,y:e.clientY-rect.top}); 
       return; 
     }
+    
+    // Handle canvas panning
     if(!cvDrag.current) return;
     const dx = e.clientX - lm.current.x;
     const dy = e.clientY - lm.current.y;
@@ -182,6 +195,13 @@ export default function App() {
   }
 
   function onCvsMU(){ 
+    // Handle stamp drag end
+    if(draggingStamp) {
+      onStampDragEnd();
+      return;
+    }
+    
+    // Handle canvas pan end
     cvDrag.current=false; 
     setIsDragging(false); 
   }
@@ -192,6 +212,48 @@ export default function App() {
     const dx=e.touches[0].clientX-lt.current.x, dy=e.touches[0].clientY-lt.current.y;
     lt.current={x:e.touches[0].clientX,y:e.touches[0].clientY};
     setPan(p=>({x:p.x+dx,y:p.y+dy}));
+  }
+
+  // Stamp drag handlers
+  function onStampDragStart(stamp, e) {
+    e.stopPropagation();
+    if(stamp.session_id !== sessionId && !admin) return;
+    setDraggingStamp(stamp.id);
+    stampDragStart.current = {
+      x: e.clientX,
+      y: e.clientY,
+      stampX: stamp.x,
+      stampY: stamp.y
+    };
+  }
+
+  function onStampDragMove(e) {
+    if(!draggingStamp) return;
+    const dx = (e.clientX - stampDragStart.current.x) / sclR.current;
+    const dy = (e.clientY - stampDragStart.current.y) / sclR.current;
+    
+    setPosts(posts.map(p => 
+      p.id === draggingStamp 
+        ? {...p, x: stampDragStart.current.stampX + dx, y: stampDragStart.current.stampY + dy}
+        : p
+    ));
+  }
+
+  async function onStampDragEnd() {
+    if(!draggingStamp) return;
+    const draggedStamp = posts.find(p => p.id === draggingStamp);
+    if(!draggedStamp) return;
+
+    try {
+      await supabase
+        .from('stamps')
+        .update({ x: draggedStamp.x, y: draggedStamp.y })
+        .eq('id', draggingStamp);
+    } catch(err) {
+      console.error('Error updating stamp position:', err);
+    }
+
+    setDraggingStamp(null);
   }
 
   async function placeOnCanvas(e) {
@@ -393,11 +455,13 @@ export default function App() {
           {posts.map(p=>{
             const isOwn = p.session_id === sessionId;
             const clickable = isOwn || admin;
+            const isDraggable = clickable && stampMenu?.stamp.id === p.id;
             return (
               <pre key={p.id}
                 className={(popped===p.id?"pop ":"") + (isOwn?"own-stamp":"")}
                 onClick={clickable ? (e)=>onStampClick(p,e) : undefined}
-                style={{...postBase, position:"absolute", left:p.x, top:p.y, color:p.color, cursor:clickable?"pointer":"default", pointerEvents:clickable?"auto":"none"}}>
+                onMouseDown={isDraggable ? (e)=>onStampDragStart(p,e) : undefined}
+                style={{...postBase, position:"absolute", left:p.x, top:p.y, color:p.color, cursor:isDraggable?"move":clickable?"pointer":"default", pointerEvents:clickable?"auto":"none"}}>
                 {p.content}
               </pre>
             );
@@ -471,7 +535,7 @@ export default function App() {
 
       {/* Zoom controls */}
       {!open&&(
-        <div style={{position:"absolute",bottom:24,right:18,display:"flex",flexDirection:"column",gap:5,zIndex:10}}>
+        <div style={{position:"absolute",bottom:80,right:18,display:"flex",flexDirection:"column",gap:5,zIndex:10}}>
           {[{l:"+",f:()=>setScl(s=>Math.min(s*1.2,7))},{l:"−",f:()=>setScl(s=>Math.max(s*0.8,0.1))},{l:"⌂",f:()=>{setPan({x:0,y:0});setScl(1);}}].map(b=>(
             <button key={b.l} onClick={b.f} style={{width:30,height:30,borderRadius:7,border:"1.5px solid #e0d0e8",background:"rgba(255,252,249,0.9)",cursor:"pointer",fontSize:b.l==="⌂"?12:16,color:"#9b7e9b",display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"}}>{b.l}</button>
           ))}
@@ -491,7 +555,7 @@ export default function App() {
       {!open&&!placing&&(
         <button onClick={()=>{setOpen(true); setEditingId(null);}}
           className="btn-hover"
-          style={{...btnHoverStyle,position:"absolute",bottom:24,left:"50%",transform:"translateX(-50%)",padding:"11px 26px",borderRadius:28,border:"none",background:"linear-gradient(135deg,#a060c0,#d090b0)",color:"#fff",fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:13,cursor:"pointer",letterSpacing:1,boxShadow:"0 4px 24px rgba(150,80,170,0.28)",whiteSpace:"nowrap",zIndex:10}}>
+          style={{...btnHoverStyle,position:"absolute",bottom:80,left:"50%",transform:"translateX(-50%)",padding:"11px 26px",borderRadius:28,border:"none",background:"linear-gradient(135deg,#a060c0,#d090b0)",color:"#fff",fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:13,cursor:"pointer",letterSpacing:1,boxShadow:"0 4px 24px rgba(150,80,170,0.28)",whiteSpace:"nowrap",zIndex:10}}>
           ✦ leave a mark
         </button>
       )}
