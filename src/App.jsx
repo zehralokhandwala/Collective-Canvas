@@ -611,7 +611,7 @@ export default function App() {
       {!open&&!placing&&(
         <button onClick={()=>{setOpen(true); setEditingId(null);}}
           className="btn-hover"
-          style={{...btnHoverStyle,position:"absolute",bottom:"calc(env(safe-area-inset-bottom, 0px) + 32px)",left:"50%",transform:"translateX(-50%)",padding:"11px 26px",borderRadius:28,border:"none",background:"linear-gradient(135deg,#a060c0,#d090b0)",color:"#fff",fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:13,cursor:"pointer",letterSpacing:1,boxShadow:"0 4px 24px rgba(150,80,170,0.28)",whiteSpace:"nowrap",zIndex:10}}>
+          style={{...btnHoverStyle,position:"absolute",bottom:"calc(env(safe-area-inset-bottom, 0px) + 90px)",left:"50%",transform:"translateX(-50%)",padding:"11px 26px",borderRadius:28,border:"none",background:"linear-gradient(135deg,#a060c0,#d090b0)",color:"#fff",fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:13,cursor:"pointer",letterSpacing:1,boxShadow:"0 4px 24px rgba(150,80,170,0.28)",whiteSpace:"nowrap",zIndex:10}}>
           ✦ leave a mark
         </button>
       )}
