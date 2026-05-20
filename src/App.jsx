@@ -121,7 +121,26 @@ export default function App() {
         .order('created_at', { ascending: true });
       
       if (error) throw error;
-      if (data) setPosts(data);
+      if (data) {
+        setPosts(data);
+        // On first load, center view on existing stamps so they're visible on all devices
+        if (!loaded) {
+          if (data.length > 0) {
+            const avgX = data.reduce((s, p) => s + Number(p.x), 0) / data.length;
+            const avgY = data.reduce((s, p) => s + Number(p.y), 0) / data.length;
+            setPan({
+              x: window.innerWidth / 2 - avgX,
+              y: window.innerHeight / 2 - avgY - 100
+            });
+          } else {
+            // No stamps yet - center origin at viewport center
+            setPan({
+              x: window.innerWidth / 2,
+              y: window.innerHeight / 2
+            });
+          }
+        }
+      }
     } catch (err) {
       console.error('Error loading stamps:', err);
     }
@@ -446,14 +465,28 @@ export default function App() {
         /* Mobile responsive fixes */
         @media (max-width: 768px) {
           .composer-modal {
-            max-height: 75vh !important;
-            padding: 12px 14px 18px !important;
+            max-height: 80dvh !important;
+            padding: 12px 14px calc(env(safe-area-inset-bottom, 0px) + 16px) !important;
           }
           .avatar-grid, .preset-grid, .hair-grid {
-            max-height: 200px !important;
+            max-height: 220px !important;
           }
           .workspace-textarea {
-            height: 150px !important;
+            height: 170px !important;
+          }
+          .hint-text {
+            white-space: normal !important;
+            max-width: 80vw !important;
+          }
+        }
+        
+        /* Smaller phones */
+        @media (max-width: 380px) {
+          .composer-modal {
+            max-height: 78dvh !important;
+          }
+          .avatar-grid, .preset-grid, .hair-grid {
+            max-height: 180px !important;
           }
         }
       `}</style>
@@ -497,22 +530,22 @@ export default function App() {
 
       {/* First-visit hint */}
       {hint&&!placing&&loaded&&(
-        <div style={{position:"absolute",bottom:140,left:"50%",transform:"translateX(-50%)",fontSize:10,color:"#c8a8c8",whiteSpace:"nowrap",animation:"fd 5s ease forwards",pointerEvents:"none",textAlign:"center"}}>
+        <div className="hint-text" style={{position:"absolute",bottom:"calc(env(safe-area-inset-bottom, 0px) + 100px)",left:"50%",transform:"translateX(-50%)",fontSize:10,color:"#c8a8c8",animation:"fd 5s ease forwards",pointerEvents:"none",textAlign:"center",maxWidth:"90vw",lineHeight:1.5}}>
           drag or scroll to pan · ctrl+scroll to zoom · tap your own stamps to edit
         </div>
       )}
 
       {/* Placing banner */}
       {placing&&(
-        <div style={{position:"absolute",top:16,left:"50%",transform:"translateX(-50%)",background:"rgba(255,252,249,0.96)",border:"1.5px solid #e0cce8",borderRadius:10,padding:"9px 18px",display:"flex",gap:14,alignItems:"center",fontSize:11,color:"#8a5c9e",boxShadow:"0 4px 24px rgba(120,80,140,0.12)",backdropFilter:"blur(10px)",zIndex:20}}>
+        <div style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 16px)",left:"50%",transform:"translateX(-50%)",background:"rgba(255,252,249,0.96)",border:"1.5px solid #e0cce8",borderRadius:10,padding:"9px 18px",display:"flex",gap:14,alignItems:"center",fontSize:11,color:"#8a5c9e",boxShadow:"0 4px 24px rgba(120,80,140,0.12)",backdropFilter:"blur(10px)",zIndex:20,maxWidth:"90vw"}}>
           <span>click anywhere to place your mark</span>
-          <button onClick={()=>{setPlacing(false);setPending(null);setOpen(true);}} style={{background:"none",border:"none",cursor:"pointer",color:"#c0a0c0",fontSize:13,padding:0,lineHeight:1}}>✕</button>
+          <button onClick={()=>{setPlacing(false);setPending(null);setOpen(true);}} style={{background:"none",border:"none",cursor:"pointer",color:"#c0a0c0",fontSize:13,padding:0,lineHeight:1,flexShrink:0}}>✕</button>
         </div>
       )}
 
       {/* Admin indicator */}
       {admin&&!open&&(
-        <div style={{position:"absolute",top:14,right:14,fontSize:10,color:"#c87090",background:"rgba(255,240,245,0.9)",padding:"4px 10px",borderRadius:12,border:"1.5px solid #f0c0d0",letterSpacing:1,zIndex:15}}>
+        <div style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 14px)",right:14,fontSize:10,color:"#c87090",background:"rgba(255,240,245,0.9)",padding:"4px 10px",borderRadius:12,border:"1.5px solid #f0c0d0",letterSpacing:1,zIndex:15}}>
           ✦ admin mode
         </div>
       )}
@@ -549,9 +582,18 @@ export default function App() {
 
       {/* Zoom controls */}
       {!open&&(
-        <div style={{position:"absolute",bottom:80,right:18,display:"flex",flexDirection:"column",gap:5,zIndex:10}}>
-          {[{l:"+",f:()=>setScl(s=>Math.min(s*1.2,7))},{l:"−",f:()=>setScl(s=>Math.max(s*0.8,0.1))},{l:"⌂",f:()=>{setPan({x:0,y:0});setScl(1);}}].map(b=>(
-            <button key={b.l} onClick={b.f} style={{width:30,height:30,borderRadius:7,border:"1.5px solid #e0d0e8",background:"rgba(255,252,249,0.9)",cursor:"pointer",fontSize:b.l==="⌂"?12:16,color:"#9b7e9b",display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)"}}>{b.l}</button>
+        <div style={{position:"absolute",bottom:"calc(env(safe-area-inset-bottom, 0px) + 90px)",right:18,display:"flex",flexDirection:"column",gap:5,zIndex:10}}>
+          {[{l:"+",f:()=>setScl(s=>Math.min(s*1.2,7))},{l:"−",f:()=>setScl(s=>Math.max(s*0.8,0.1))},{l:"⌂",f:()=>{
+            if(posts.length>0){
+              const avgX = posts.reduce((s, p) => s + Number(p.x), 0) / posts.length;
+              const avgY = posts.reduce((s, p) => s + Number(p.y), 0) / posts.length;
+              setPan({x:window.innerWidth/2-avgX, y:window.innerHeight/2-avgY-100});
+            } else {
+              setPan({x:window.innerWidth/2, y:window.innerHeight/2});
+            }
+            setScl(1);
+          }}].map(b=>(
+            <button key={b.l} onClick={b.f} style={{width:32,height:32,borderRadius:8,border:"1.5px solid #e0d0e8",background:"rgba(255,252,249,0.95)",cursor:"pointer",fontSize:b.l==="⌂"?12:16,color:"#9b7e9b",display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)",boxShadow:"0 2px 8px rgba(120,80,140,0.12)"}}>{b.l}</button>
           ))}
         </div>
       )}
@@ -560,7 +602,7 @@ export default function App() {
       {posts.length>0&&!open&&(
         <div 
           onClick={handleCounterTap}
-          style={{position:"absolute",top:14,left:"50%",transform:"translateX(-50%)",fontSize:10,color:"#c8a8c8",letterSpacing:1,whiteSpace:"nowrap",cursor:"default"}}>
+          style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 14px)",left:"50%",transform:"translateX(-50%)",fontSize:10,color:"#c8a8c8",letterSpacing:1,whiteSpace:"nowrap",cursor:"default"}}>
           {posts.length} mark{posts.length!==1?"s":""}
         </div>
       )}
@@ -569,14 +611,14 @@ export default function App() {
       {!open&&!placing&&(
         <button onClick={()=>{setOpen(true); setEditingId(null);}}
           className="btn-hover"
-          style={{...btnHoverStyle,position:"absolute",bottom:80,left:"50%",transform:"translateX(-50%)",padding:"11px 26px",borderRadius:28,border:"none",background:"linear-gradient(135deg,#a060c0,#d090b0)",color:"#fff",fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:13,cursor:"pointer",letterSpacing:1,boxShadow:"0 4px 24px rgba(150,80,170,0.28)",whiteSpace:"nowrap",zIndex:10}}>
+          style={{...btnHoverStyle,position:"absolute",bottom:"calc(env(safe-area-inset-bottom, 0px) + 32px)",left:"50%",transform:"translateX(-50%)",padding:"11px 26px",borderRadius:28,border:"none",background:"linear-gradient(135deg,#a060c0,#d090b0)",color:"#fff",fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:13,cursor:"pointer",letterSpacing:1,boxShadow:"0 4px 24px rgba(150,80,170,0.28)",whiteSpace:"nowrap",zIndex:10}}>
           ✦ leave a mark
         </button>
       )}
 
       {/* COMPOSER */}
       {open&&(
-        <div className="up composer-modal" style={{position:"absolute",bottom:0,left:"50%",transform:"translateX(-50%)",width:480,maxWidth:"100vw",background:"rgba(255,252,249,0.98)",borderRadius:"18px 18px 0 0",boxShadow:"0 -6px 40px rgba(120,80,140,0.15)",padding:"14px 16px 22px",backdropFilter:"blur(14px)",border:"1.5px solid #eedde8",borderBottom:"none",zIndex:20,maxHeight:"92vh",overflowY:"auto"}}>
+        <div className="up composer-modal" style={{position:"absolute",bottom:0,left:"50%",transform:"translateX(-50%)",width:480,maxWidth:"100vw",background:"rgba(255,252,249,0.98)",borderRadius:"18px 18px 0 0",boxShadow:"0 -6px 40px rgba(120,80,140,0.15)",padding:"14px 16px calc(env(safe-area-inset-bottom, 0px) + 22px)",backdropFilter:"blur(14px)",border:"1.5px solid #eedde8",borderBottom:"none",zIndex:20,maxHeight:"85dvh",display:"flex",flexDirection:"column"}}>
 
           {/* Tab bar */}
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
@@ -591,6 +633,9 @@ export default function App() {
           <div style={{fontSize:9,color:"#c8a8c8",letterSpacing:0.6,marginBottom:10,textAlign:"center",fontFamily:"sans-serif"}}>
             feel free to edit and show your creativity ✦
           </div>
+
+          {/* SCROLLABLE CONTENT */}
+          <div style={{flex:1,overflowY:"auto",minHeight:0,marginRight:-4,paddingRight:4}}>
 
           {/* AVATAR TAB - WIZARD */}
           {tab==="avatar" && (
@@ -646,7 +691,7 @@ export default function App() {
               )}
 
               {/* Nav */}
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:12,gap:8}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:12,gap:8,position:"sticky",bottom:0,background:"rgba(255,252,249,0.98)",paddingTop:8,paddingBottom:2,zIndex:5}}>
                 <button onClick={backStep} disabled={step===1}
                   className={step>1?"btn-back":""}
                   style={{...btnHoverStyle,padding:"7px 14px",borderRadius:8,border:"1.5px solid #e0cce8",background:step===1?"#f5f0f5":"#fffaff",color:step===1?"#ddd":"#9b7e9b",cursor:step===1?"default":"pointer",fontFamily:"inherit",fontSize:11}}>← back</button>
@@ -708,8 +753,11 @@ export default function App() {
             </>
           )}
 
+          {/* End scrollable content */}
+          </div>
+
           {/* Footer */}
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:14,paddingTop:10,borderTop:"1px solid #f0e0f0"}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:14,paddingTop:10,borderTop:"1px solid #f0e0f0",flexShrink:0}}>
             <div style={{display:"flex",gap:6,alignItems:"center"}}>
               {COLS.map(c=>(
                 <button key={c} onClick={()=>setCol(c)} style={{width:20,height:20,borderRadius:"50%",background:c,cursor:"pointer",border:"none",boxShadow:col===c?`0 0 0 2px white,0 0 0 3.5px ${c}`:"none",transition:"box-shadow 0.15s"}}/>
