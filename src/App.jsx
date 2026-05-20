@@ -530,7 +530,7 @@ export default function App() {
 
       {/* First-visit hint */}
       {hint&&!placing&&loaded&&(
-        <div className="hint-text" style={{position:"absolute",bottom:"calc(env(safe-area-inset-bottom, 0px) + 100px)",left:"50%",transform:"translateX(-50%)",fontSize:10,color:"#c8a8c8",animation:"fd 5s ease forwards",pointerEvents:"none",textAlign:"center",maxWidth:"90vw",lineHeight:1.5}}>
+        <div className="hint-text" style={{position:"absolute",bottom:"calc(env(safe-area-inset-bottom, 0px) + 160px)",left:"50%",transform:"translateX(-50%)",fontSize:10,color:"#c8a8c8",animation:"fd 5s ease forwards",pointerEvents:"none",textAlign:"center",maxWidth:"90vw",lineHeight:1.5}}>
           drag or scroll to pan · ctrl+scroll to zoom · tap your own stamps to edit
         </div>
       )}
