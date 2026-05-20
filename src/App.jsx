@@ -442,6 +442,20 @@ export default function App() {
         ::-webkit-scrollbar{width:4px;height:4px}
         ::-webkit-scrollbar-thumb{background:#e0d0e8;border-radius:3px}
         ::-webkit-scrollbar-track{background:transparent}
+        
+        /* Mobile responsive fixes */
+        @media (max-width: 768px) {
+          .composer-modal {
+            max-height: 75vh !important;
+            padding: 12px 14px 18px !important;
+          }
+          .avatar-grid, .preset-grid, .hair-grid {
+            max-height: 200px !important;
+          }
+          .workspace-textarea {
+            height: 150px !important;
+          }
+        }
       `}</style>
 
       {/* CANVAS */}
@@ -483,7 +497,7 @@ export default function App() {
 
       {/* First-visit hint */}
       {hint&&!placing&&loaded&&(
-        <div style={{position:"absolute",bottom:80,left:"50%",transform:"translateX(-50%)",fontSize:10,color:"#c8a8c8",whiteSpace:"nowrap",animation:"fd 5s ease forwards",pointerEvents:"none",textAlign:"center"}}>
+        <div style={{position:"absolute",bottom:140,left:"50%",transform:"translateX(-50%)",fontSize:10,color:"#c8a8c8",whiteSpace:"nowrap",animation:"fd 5s ease forwards",pointerEvents:"none",textAlign:"center"}}>
           drag or scroll to pan · ctrl+scroll to zoom · tap your own stamps to edit
         </div>
       )}
@@ -562,7 +576,7 @@ export default function App() {
 
       {/* COMPOSER */}
       {open&&(
-        <div className="up" style={{position:"absolute",bottom:0,left:"50%",transform:"translateX(-50%)",width:480,maxWidth:"100vw",background:"rgba(255,252,249,0.98)",borderRadius:"18px 18px 0 0",boxShadow:"0 -6px 40px rgba(120,80,140,0.15)",padding:"14px 16px 22px",backdropFilter:"blur(14px)",border:"1.5px solid #eedde8",borderBottom:"none",zIndex:20,maxHeight:"92vh",overflowY:"auto"}}>
+        <div className="up composer-modal" style={{position:"absolute",bottom:0,left:"50%",transform:"translateX(-50%)",width:480,maxWidth:"100vw",background:"rgba(255,252,249,0.98)",borderRadius:"18px 18px 0 0",boxShadow:"0 -6px 40px rgba(120,80,140,0.15)",padding:"14px 16px 22px",backdropFilter:"blur(14px)",border:"1.5px solid #eedde8",borderBottom:"none",zIndex:20,maxHeight:"92vh",overflowY:"auto"}}>
 
           {/* Tab bar */}
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
@@ -594,7 +608,7 @@ export default function App() {
 
               {/* STEP 1: face grid */}
               {step===1 && (
-                <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,maxHeight:330,overflowY:"auto",paddingRight:3,paddingBottom:3}}>
+                <div className="avatar-grid" style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,maxHeight:330,overflowY:"auto",paddingRight:3,paddingBottom:3}}>
                   {FACES.map(f=>(
                     <button key={f.id} onClick={()=>selectFace(f)}
                       style={{padding:"6px 4px",borderRadius:8,border:face?.id===f.id?"1.5px solid #c084d4":"1.5px solid #e8d8e8",background:face?.id===f.id?"#f5e8ff":"#fffaff",cursor:"pointer",textAlign:"center",overflow:"hidden"}}>
@@ -607,7 +621,7 @@ export default function App() {
 
               {/* STEP 2: hair grid */}
               {step===2 && (
-                <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,maxHeight:330,overflowY:"auto",paddingRight:3,paddingBottom:3}}>
+                <div className="hair-grid" style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,maxHeight:330,overflowY:"auto",paddingRight:3,paddingBottom:3}}>
                   {HAIRS.map(h=>{
                     const previewArt = combineHF(h, face || FACES[6], "");
                     return (
@@ -625,6 +639,7 @@ export default function App() {
               {step===3 && (
                 <>
                   <textarea ref={wsRef} value={workspace} onChange={e=>setWorkspace(e.target.value)}
+                    className="workspace-textarea"
                     style={{width:"100%",height:220,padding:"10px 12px",borderRadius:10,border:"1.5px solid #e0cce8",fontFamily:"'Courier New',monospace",fontSize:12,background:"#fffaff",boxSizing:"border-box",resize:"none",outline:"none",color:col,lineHeight:1.4,caretColor:col,whiteSpace:"pre"}}
                     placeholder="your character appears here · edit it freely"/>
                 </>
@@ -653,7 +668,7 @@ export default function App() {
                   {preset ? preset.art + (presetText.trim()?"\n"+presetText.trim():"") : "pick a preset below"}
                 </pre>
               </div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,maxHeight:200,overflowY:"auto",paddingRight:3,paddingBottom:3}}>
+              <div className="preset-grid" style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,maxHeight:200,overflowY:"auto",paddingRight:3,paddingBottom:3}}>
                 {PRESETS.map((p,i)=>(
                   <button key={i} onClick={()=>setPreset(p)}
                     style={{padding:"6px 4px",borderRadius:8,border:preset?.name===p.name?"1.5px solid #c084d4":"1.5px solid #e8d8e8",background:preset?.name===p.name?"#f5e8ff":"#fffaff",cursor:"pointer",textAlign:"center",overflow:"hidden"}}>
