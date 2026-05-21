@@ -444,7 +444,7 @@ export default function App() {
   };
 
   return (
-    <div style={{width:"100vw",height:"100vh",position:"relative",overflow:"hidden",fontFamily:"'Courier New',monospace"}}>
+    <div style={{width:"100vw",height:"100dvh",position:"relative",overflow:"hidden",fontFamily:"'Courier New',monospace"}}>
       <style>{`
         @keyframes pop{0%{transform:scale(0.2);opacity:0}55%{transform:scale(1.09)}100%{transform:scale(1);opacity:1}}
         @keyframes up{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
@@ -464,21 +464,21 @@ export default function App() {
         
         /* Mobile responsive fixes */
         @media (max-width: 768px) {
-          .composer-modal {
-            max-height: 80dvh !important;
-            padding: 12px 14px calc(env(safe-area-inset-bottom, 0px) + 16px) !important;
-          }
-          .avatar-grid, .preset-grid, .hair-grid {
-            max-height: 220px !important;
-          }
-          .workspace-textarea {
-            height: 170px !important;
-          }
-          .hint-text {
-            white-space: normal !important;
-            max-width: 80vw !important;
-          }
-        }
+  .composer-modal {
+    max-height: 75dvh !important;
+    padding: 10px 12px calc(env(safe-area-inset-bottom, 0px) + 12px) !important;
+  }
+  .avatar-grid, .preset-grid, .hair-grid {
+    max-height: 180px !important;
+  }
+  .workspace-textarea {
+    height: 130px !important;
+  }
+  .hint-text {
+    white-space: normal !important;
+    max-width: 80vw !important;
+  }
+}
         
         /* Smaller phones */
         @media (max-width: 380px) {
