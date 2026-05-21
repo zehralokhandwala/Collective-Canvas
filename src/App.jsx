@@ -114,25 +114,30 @@ export default function App() {
   useEffect(()=>{ const t=setTimeout(()=>setHint(false),5000); return ()=>clearTimeout(t); },[]);
 
   async function load() {
-    try {
-      const { data, error } = await supabase
-        .from('stamps')
-        .select('*')
-        .order('created_at', { ascending: true });
+  try {
+    const { data, error } = await supabase
+      .from('stamps')
+      .select('*')
+      .order('created_at', { ascending: true });
+    
+    if (error) throw error;
+    if (data) {
+      setPosts(data);
       
-      if (error) throw error;
-      if (data) {
-        setPosts(data);
-        // On first load, center view on existing stamps so they're visible on all devices
-        if (!loaded) {
-          if (data.length > 0) {
-            const avgX = data.reduce((s, p) => s + Number(p.x), 0) / data.length;
-            const avgY = data.reduce((s, p) => s + Number(p.y), 0) / data.length;
-            setPan({
-              x: window.innerWidth / 2 - avgX,
-              y: window.innerHeight / 2 - avgY - 100
-            });
-          } else {
+      // On first load only, set consistent home view (centered at origin 0,0)
+      if (!loaded) {
+        setPan({
+          x: window.innerWidth / 2,
+          y: window.innerHeight / 2
+        });
+        setScl(1);
+      }
+    }
+  } catch (err) {
+    console.error('Error loading stamps:', err);
+  }
+  setLoaded(true);
+}
             // No stamps yet - center origin at viewport center
             setPan({
               x: window.innerWidth / 2,
@@ -225,12 +230,33 @@ export default function App() {
     setIsDragging(false); 
   }
 
-  function onTS(e){ if(e.touches.length===1) lt.current={x:e.touches[0].clientX,y:e.touches[0].clientY}; }
-  function onTM(e){
-    if(!lt.current||e.touches.length!==1) return;
-    const dx=e.touches[0].clientX-lt.current.x, dy=e.touches[0].clientY-lt.current.y;
+  function const pinchDist = useRef(null);
+
+function onTS(e){ 
+  if(e.touches.length===2) {
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    pinchDist.current = Math.sqrt(dx*dx + dy*dy);
+  } else if(e.touches.length===1) {
     lt.current={x:e.touches[0].clientX,y:e.touches[0].clientY};
-    setPan(p=>({x:p.x+dx,y:p.y+dy}));
+  }
+}
+
+function onTM(e){
+  if(e.touches.length===2 && pinchDist.current !== null) {
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    const newDist = Math.sqrt(dx*dx + dy*dy);
+    const scaleFactor = newDist / pinchDist.current;
+    setScl(s=>Math.min(Math.max(s*scaleFactor,0.1),7));
+    pinchDist.current = newDist;
+    return;
+  }
+  if(!lt.current||e.touches.length!==1) return;
+  const dx=e.touches[0].clientX-lt.current.x, dy=e.touches[0].clientY-lt.current.y;
+  lt.current={x:e.touches[0].clientX,y:e.touches[0].clientY};
+  setPan(p=>({x:p.x+dx,y:p.y+dy}));
+}
   }
 
   // Stamp drag handlers
@@ -495,7 +521,7 @@ export default function App() {
       <div ref={cvsRef}
         style={{position:"absolute",inset:0,background:"#f9f5f0",cursor:placing?"crosshair":isDragging?"grabbing":"grab",touchAction:"none"}}
         onMouseDown={onCvsMD} onMouseMove={onCvsMM} onMouseUp={onCvsMU} onMouseLeave={onCvsMU}
-        onTouchStart={onTS} onTouchMove={onTM} onTouchEnd={()=>{lt.current=null;}}
+        onTouchStart={onTS} onTouchMove={onTM} onTouchEnd={()=>{lt.current=null; pinchDist.current=null;}}
         onClick={placeOnCanvas}>
         <div style={{position:"absolute",inset:0,backgroundImage:"radial-gradient(circle,#d4b8df 1px,transparent 1px)",backgroundSize:"30px 30px",opacity:0.45,pointerEvents:"none"}}/>
         <div style={{position:"absolute",left:0,top:0,transform:`translate(${pan.x}px,${pan.y}px) scale(${scl})`,transformOrigin:"0 0",width:1,height:1}}>
@@ -583,16 +609,18 @@ export default function App() {
       {/* Zoom controls */}
       {!open&&(
         <div style={{position:"absolute",bottom:"calc(env(safe-area-inset-bottom, 0px) + 90px)",right:18,display:"flex",flexDirection:"column",gap:5,zIndex:10}}>
-          {[{l:"+",f:()=>setScl(s=>Math.min(s*1.2,7))},{l:"−",f:()=>setScl(s=>Math.max(s*0.8,0.1))},{l:"⌂",f:()=>{
-            if(posts.length>0){
-              const avgX = posts.reduce((s, p) => s + Number(p.x), 0) / posts.length;
-              const avgY = posts.reduce((s, p) => s + Number(p.y), 0) / posts.length;
-              setPan({x:window.innerWidth/2-avgX, y:window.innerHeight/2-avgY-100});
-            } else {
-              setPan({x:window.innerWidth/2, y:window.innerHeight/2});
-            }
-            setScl(1);
-          }}].map(b=>(
+        {[
+  ...(posts.filter(p=>p.session_id===sessionId).length>0 ? [{l:"✦",f:()=>{
+    const mine = posts.filter(p=>p.session_id===sessionId);
+    const avgX = mine.reduce((s,p)=>s+Number(p.x),0)/mine.length;
+    const avgY = mine.reduce((s,p)=>s+Number(p.y),0)/mine.length;
+    setPan({x:window.innerWidth/2-avgX, y:window.innerHeight/2-avgY});
+    setScl(1);
+  }}] : []),
+  {l:"+",f:()=>setScl(s=>Math.min(s*1.2,7))},
+  {l:"−",f:()=>setScl(s=>Math.max(s*0.8,0.1))},
+  {l:"⌂",f:()=>{setPan({x:window.innerWidth/2, y:window.innerHeight/2});setScl(1);}}
+].map(b=>(
             <button key={b.l} onClick={b.f} style={{width:32,height:32,borderRadius:8,border:"1.5px solid #e0d0e8",background:"rgba(255,252,249,0.95)",cursor:"pointer",fontSize:b.l==="⌂"?12:16,color:"#9b7e9b",display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)",boxShadow:"0 2px 8px rgba(120,80,140,0.12)"}}>{b.l}</button>
           ))}
         </div>
@@ -618,7 +646,7 @@ export default function App() {
 
       {/* COMPOSER */}
       {open&&(
-        <div className="up composer-modal" style={{position:"absolute",bottom:0,left:"50%",transform:"translateX(-50%)",width:480,maxWidth:"calc(100vw - 24px)",background:"rgba(255,252,249,0.98)",borderRadius:"18px 18px 0 0",boxShadow:"0 -6px 40px rgba(120,80,140,0.15)",padding:"14px 16px calc(env(safe-area-inset-bottom, 0px) + 22px)",backdropFilter:"blur(14px)",border:"1.5px solid #eedde8",borderBottom:"none",zIndex:20,maxHeight:"85dvh",display:"flex",flexDirection:"column"}}>
+        <div className="up composer-modal" style={{position:"absolute",bottom:0,left:"50%",transform:"translateX(-50%)",width:480,maxWidth:"calc(100vw - 32px)",background:"rgba(255,252,249,0.98)",borderRadius:"18px 18px 0 0",boxShadow:"0 -6px 40px rgba(120,80,140,0.15)",padding:"14px 16px calc(env(safe-area-inset-bottom, 0px) + 22px)",backdropFilter:"blur(14px)",border:"1.5px solid #eedde8",borderBottom:"none",zIndex:20,maxHeight:"85dvh",display:"flex",flexDirection:"column"}}>
 
           {/* Tab bar */}
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
