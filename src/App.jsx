@@ -114,36 +114,21 @@ export default function App() {
   useEffect(()=>{ const t=setTimeout(()=>setHint(false),5000); return ()=>clearTimeout(t); },[]);
 
   async function load() {
-  try {
-    const { data, error } = await supabase
-      .from('stamps')
-      .select('*')
-      .order('created_at', { ascending: true });
-    
-    if (error) throw error;
-    if (data) {
-      setPosts(data);
+    try {
+      const { data, error } = await supabase
+        .from('stamps')
+        .select('*')
+        .order('created_at', { ascending: true });
       
-      // On first load only, set consistent home view (centered at origin 0,0)
-      if (!loaded) {
-        setPan({
-          x: window.innerWidth / 2,
-          y: window.innerHeight / 2
-        });
-        setScl(1);
-      }
-    }
-  } catch (err) {
-    console.error('Error loading stamps:', err);
-  }
-  setLoaded(true);
-}
-            // No stamps yet - center origin at viewport center
-            setPan({
-              x: window.innerWidth / 2,
-              y: window.innerHeight / 2
-            });
-          }
+      if (error) throw error;
+      if (data) {
+        setPosts(data);
+        if (!loaded) {
+          setPan({
+            x: window.innerWidth / 2,
+            y: window.innerHeight / 2
+          });
+          setScl(1);
         }
       }
     } catch (err) {
