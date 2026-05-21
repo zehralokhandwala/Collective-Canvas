@@ -215,8 +215,7 @@ export default function App() {
     setIsDragging(false); 
   }
 
-  function const pinchDist = useRef(null);
-
+const pinchDist = useRef(null);
 function onTS(e){ 
   if(e.touches.length===2) {
     const dx = e.touches[0].clientX - e.touches[1].clientX;
