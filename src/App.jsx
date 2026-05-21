@@ -257,7 +257,7 @@ function onTM(e){
   lt.current={x:e.touches[0].clientX,y:e.touches[0].clientY};
   setPan(p=>({x:p.x+dx,y:p.y+dy}));
 }
-  }
+  
 
   // Stamp drag handlers
   function onStampDragStart(stamp, e) {
