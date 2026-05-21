@@ -71,7 +71,14 @@ export default function App() {
   const cvDrag = useRef(false), lm = useRef({x:0,y:0}), lt = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
 
-  const [sessionId] = useState(() => `s-${Date.now()}-${Math.random().toString(36).slice(2,8)}`);
+  const [sessionId] = useState(() => {
+  const stored = localStorage.getItem('ascii-garden-session');
+  if (stored) return stored;
+  const newId = `s-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+  localStorage.setItem('ascii-garden-session', newId);
+  return newId;
+});
+  const initialPanSet = useRef(false);
   const [admin, setAdmin] = useState(false);
   const [pwPrompt, setPwPrompt] = useState(false);
   const [pwInput, setPwInput] = useState("");
@@ -114,28 +121,29 @@ export default function App() {
   useEffect(()=>{ const t=setTimeout(()=>setHint(false),5000); return ()=>clearTimeout(t); },[]);
 
   async function load() {
-    try {
-      const { data, error } = await supabase
-        .from('stamps')
-        .select('*')
-        .order('created_at', { ascending: true });
-      
-      if (error) throw error;
-      if (data) {
-        setPosts(data);
-        if (!loaded) {
-          setPan({
-            x: window.innerWidth / 2,
-            y: window.innerHeight / 2
-          });
-          setScl(1);
-        }
+  try {
+    const { data, error } = await supabase
+      .from('stamps')
+      .select('*')
+      .order('created_at', { ascending: true });
+    
+    if (error) throw error;
+    if (data) {
+      setPosts(data);
+      if (!initialPanSet.current) {
+        initialPanSet.current = true;
+        setPan({
+          x: window.innerWidth / 2,
+          y: window.innerHeight / 2
+        });
+        setScl(1);
       }
-    } catch (err) {
-      console.error('Error loading stamps:', err);
     }
-    setLoaded(true);
+  } catch (err) {
+    console.error('Error loading stamps:', err);
   }
+  setLoaded(true);
+}
   useEffect(()=>{ load(); const iv=setInterval(load,7000); return ()=>clearInterval(iv); },[]);
 
   // Wheel: ctrl/cmd = zoom, otherwise pan in both axes (covers trackpad + scroll wheel)
@@ -639,13 +647,14 @@ function onTM(e){
       )}
 
       {/* Counter - with triple-tap handler */}
-      {posts.length>0&&!open&&(
-        <div 
-          onClick={handleCounterTap}
-          style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 14px)",left:"50%",transform:"translateX(-50%)",fontSize:10,color:"#c8a8c8",letterSpacing:1,whiteSpace:"nowrap",cursor:"default"}}>
-          {posts.length} mark{posts.length!==1?"s":""}
-        </div>
-      )}
+{posts.length>0&&!open&&(
+  <div 
+    onClick={handleCounterTap}
+    style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 14px)",left:"50%",transform:"translateX(-50%)",fontSize:10,color:"#c8a8c8",letterSpacing:1,whiteSpace:"nowrap",cursor:"default",textAlign:"center",lineHeight:1.5}}>
+    {posts.length} mark{posts.length!==1?"s":""}
+    <div style={{fontSize:8,color:"#d8b8d8",letterSpacing:0.8,marginTop:2}}>marks left by strangers</div>
+  </div>
+)}
 
       {/* Leave a mark CTA */}
       {!open&&!placing&&(
