@@ -618,7 +618,7 @@ export default function App() {
 
       {/* COMPOSER */}
       {open&&(
-        <div className="up composer-modal" style={{position:"absolute",bottom:0,left:"50%",transform:"translateX(-50%)",width:480,maxWidth:"100vw",background:"rgba(255,252,249,0.98)",borderRadius:"18px 18px 0 0",boxShadow:"0 -6px 40px rgba(120,80,140,0.15)",padding:"14px 16px calc(env(safe-area-inset-bottom, 0px) + 22px)",backdropFilter:"blur(14px)",border:"1.5px solid #eedde8",borderBottom:"none",zIndex:20,maxHeight:"85dvh",display:"flex",flexDirection:"column"}}>
+        <div className="up composer-modal" style={{position:"absolute",bottom:0,left:"50%",transform:"translateX(-50%)",width:480,maxWidth:"calc(100vw - 24px)",background:"rgba(255,252,249,0.98)",borderRadius:"18px 18px 0 0",boxShadow:"0 -6px 40px rgba(120,80,140,0.15)",padding:"14px 16px calc(env(safe-area-inset-bottom, 0px) + 22px)",backdropFilter:"blur(14px)",border:"1.5px solid #eedde8",borderBottom:"none",zIndex:20,maxHeight:"85dvh",display:"flex",flexDirection:"column"}}>
 
           {/* Tab bar */}
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
