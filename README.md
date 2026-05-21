@@ -1,4 +1,4 @@
-# ASCII Garden - Collective Canvas
+Collective Canvas
 
 A collaborative ASCII art canvas where anyone can leave their mark.
 
