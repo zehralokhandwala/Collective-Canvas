@@ -209,7 +209,17 @@ export default function App() {
       onStampDragEnd();
       return;
     }
-    
+    function onStampTouchStart(stamp, e) {
+  e.stopPropagation();
+  if(stamp.session_id !== sessionId && !admin) return;
+  setDraggingStamp(stamp.id);
+  stampDragStart.current = {
+    x: e.touches[0].clientX,
+    y: e.touches[0].clientY,
+    stampX: stamp.x,
+    stampY: stamp.y
+  };
+}
     // Handle canvas pan end
     cvDrag.current=false; 
     setIsDragging(false); 
@@ -225,7 +235,21 @@ function onTS(e){
     lt.current={x:e.touches[0].clientX,y:e.touches[0].clientY};
   }
 }
-
+function onTM(e){
+  // Stamp dragging on touch
+  if(draggingStamp && e.touches.length===1) {
+    const dx = (e.touches[0].clientX - stampDragStart.current.x) / sclR.current;
+    const dy = (e.touches[0].clientY - stampDragStart.current.y) / sclR.current;
+    setPosts(posts.map(p => 
+      p.id === draggingStamp 
+        ? {...p, x: stampDragStart.current.stampX + dx, y: stampDragStart.current.stampY + dy}
+        : p
+    ));
+    return;
+  }
+  
+  // ... rest of your existing onTM code (pinch zoom, then pan)
+}
 function onTM(e){
   if(e.touches.length===2 && pinchDist.current !== null) {
     const dx = e.touches[0].clientX - e.touches[1].clientX;
@@ -505,7 +529,11 @@ function onTM(e){
       <div ref={cvsRef}
         style={{position:"absolute",inset:0,background:"#f9f5f0",cursor:placing?"crosshair":isDragging?"grabbing":"grab",touchAction:"none"}}
         onMouseDown={onCvsMD} onMouseMove={onCvsMM} onMouseUp={onCvsMU} onMouseLeave={onCvsMU}
-        onTouchStart={onTS} onTouchMove={onTM} onTouchEnd={()=>{lt.current=null; pinchDist.current=null;}}
+        onTouchStart={onTS} onTouchMove={onTM} onTouchEnd={()=>{
+  lt.current=null; 
+  pinchDist.current=null;
+  if(draggingStamp) onStampDragEnd();
+}}
         onClick={placeOnCanvas}>
         <div style={{position:"absolute",inset:0,backgroundImage:"radial-gradient(circle,#d4b8df 1px,transparent 1px)",backgroundSize:"30px 30px",opacity:0.45,pointerEvents:"none"}}/>
         <div style={{position:"absolute",left:0,top:0,transform:`translate(${pan.x}px,${pan.y}px) scale(${scl})`,transformOrigin:"0 0",width:1,height:1}}>
@@ -517,7 +545,7 @@ function onTM(e){
               <pre key={p.id}
                 className={(popped===p.id?"pop ":"") + (isOwn?"own-stamp":"")}
                 onClick={clickable ? (e)=>onStampClick(p,e) : undefined}
-                onMouseDown={isDraggable ? (e)=>onStampDragStart(p,e) : undefined}
+                onMouseDown={isDraggable ? (e)=>onStampDragStart(p,e) : undefined}onTouchStart={isDraggable ? (e)=>onStampTouchStart(p,e) : undefined}
                 style={{...postBase, position:"absolute", left:p.x, top:p.y, color:p.color, cursor:isDraggable?"move":clickable?"pointer":"default", pointerEvents:clickable?"auto":"none"}}>
                 {p.content}
               </pre>
