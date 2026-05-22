@@ -71,14 +71,7 @@ export default function App() {
   const cvDrag = useRef(false), lm = useRef({x:0,y:0}), lt = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
 
-  const [sessionId] = useState(() => {
-  const stored = localStorage.getItem('ascii-garden-session');
-  if (stored) return stored;
-  const newId = `s-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
-  localStorage.setItem('ascii-garden-session', newId);
-  return newId;
-});
-  const initialPanSet = useRef(false);
+  const [sessionId] = useState(() => `s-${Date.now()}-${Math.random().toString(36).slice(2,8)}`);
   const [admin, setAdmin] = useState(false);
   const [pwPrompt, setPwPrompt] = useState(false);
   const [pwInput, setPwInput] = useState("");
@@ -116,34 +109,53 @@ export default function App() {
   const tapTimerRef = useRef(null);
   const tapCountRef = useRef(0);
 
+  // Welcome card state - shown only on first visit
+  const [showWelcome, setShowWelcome] = useState(() => {
+    return !localStorage.getItem('creative-canvas-welcomed');
+  });
+
+  function dismissWelcome() {
+    localStorage.setItem('creative-canvas-welcomed', 'true');
+    setShowWelcome(false);
+  }
+
   useEffect(()=>{ panR.current = pan; }, [pan]);
   useEffect(()=>{ sclR.current = scl; }, [scl]);
   useEffect(()=>{ const t=setTimeout(()=>setHint(false),5000); return ()=>clearTimeout(t); },[]);
 
   async function load() {
-  try {
-    const { data, error } = await supabase
-      .from('stamps')
-      .select('*')
-      .order('created_at', { ascending: true });
-    
-    if (error) throw error;
-    if (data) {
-      setPosts(data);
-      if (!initialPanSet.current) {
-        initialPanSet.current = true;
-        setPan({
-          x: window.innerWidth / 2,
-          y: window.innerHeight / 2
-        });
-        setScl(1);
+    try {
+      const { data, error } = await supabase
+        .from('stamps')
+        .select('*')
+        .order('created_at', { ascending: true });
+      
+      if (error) throw error;
+      if (data) {
+        setPosts(data);
+        // On first load, center view on existing stamps so they're visible on all devices
+        if (!loaded) {
+          if (data.length > 0) {
+            const avgX = data.reduce((s, p) => s + Number(p.x), 0) / data.length;
+            const avgY = data.reduce((s, p) => s + Number(p.y), 0) / data.length;
+            setPan({
+              x: window.innerWidth / 2 - avgX,
+              y: window.innerHeight / 2 - avgY - 100
+            });
+          } else {
+            // No stamps yet - center origin at viewport center
+            setPan({
+              x: window.innerWidth / 2,
+              y: window.innerHeight / 2
+            });
+          }
+        }
       }
+    } catch (err) {
+      console.error('Error loading stamps:', err);
     }
-  } catch (err) {
-    console.error('Error loading stamps:', err);
+    setLoaded(true);
   }
-  setLoaded(true);
-}
   useEffect(()=>{ load(); const iv=setInterval(load,7000); return ()=>clearInterval(iv); },[]);
 
   // Wheel: ctrl/cmd = zoom, otherwise pan in both axes (covers trackpad + scroll wheel)
@@ -217,63 +229,19 @@ export default function App() {
       onStampDragEnd();
       return;
     }
-    function onStampTouchStart(stamp, e) {
-  e.stopPropagation();
-  if(stamp.session_id !== sessionId && !admin) return;
-  setDraggingStamp(stamp.id);
-  stampDragStart.current = {
-    x: e.touches[0].clientX,
-    y: e.touches[0].clientY,
-    stampX: stamp.x,
-    stampY: stamp.y
-  };
-}
+    
     // Handle canvas pan end
     cvDrag.current=false; 
     setIsDragging(false); 
   }
 
-const pinchDist = useRef(null);
-function onTS(e){ 
-  if(e.touches.length===2) {
-    const dx = e.touches[0].clientX - e.touches[1].clientX;
-    const dy = e.touches[0].clientY - e.touches[1].clientY;
-    pinchDist.current = Math.sqrt(dx*dx + dy*dy);
-  } else if(e.touches.length===1) {
+  function onTS(e){ if(e.touches.length===1) lt.current={x:e.touches[0].clientX,y:e.touches[0].clientY}; }
+  function onTM(e){
+    if(!lt.current||e.touches.length!==1) return;
+    const dx=e.touches[0].clientX-lt.current.x, dy=e.touches[0].clientY-lt.current.y;
     lt.current={x:e.touches[0].clientX,y:e.touches[0].clientY};
+    setPan(p=>({x:p.x+dx,y:p.y+dy}));
   }
-}
-function onTM(e){
-  // Stamp dragging on touch
-  if(draggingStamp && e.touches.length===1) {
-    const dx = (e.touches[0].clientX - stampDragStart.current.x) / sclR.current;
-    const dy = (e.touches[0].clientY - stampDragStart.current.y) / sclR.current;
-    setPosts(posts.map(p => 
-      p.id === draggingStamp 
-        ? {...p, x: stampDragStart.current.stampX + dx, y: stampDragStart.current.stampY + dy}
-        : p
-    ));
-    return;
-  }
-  
-  // ... rest of your existing onTM code (pinch zoom, then pan)
-}
-function onTM(e){
-  if(e.touches.length===2 && pinchDist.current !== null) {
-    const dx = e.touches[0].clientX - e.touches[1].clientX;
-    const dy = e.touches[0].clientY - e.touches[1].clientY;
-    const newDist = Math.sqrt(dx*dx + dy*dy);
-    const scaleFactor = newDist / pinchDist.current;
-    setScl(s=>Math.min(Math.max(s*scaleFactor,0.1),7));
-    pinchDist.current = newDist;
-    return;
-  }
-  if(!lt.current||e.touches.length!==1) return;
-  const dx=e.touches[0].clientX-lt.current.x, dy=e.touches[0].clientY-lt.current.y;
-  lt.current={x:e.touches[0].clientX,y:e.touches[0].clientY};
-  setPan(p=>({x:p.x+dx,y:p.y+dy}));
-}
-  
 
   // Stamp drag handlers
   function onStampDragStart(stamp, e) {
@@ -486,7 +454,7 @@ function onTM(e){
   };
 
   return (
-    <div style={{width:"100vw",height:"100dvh",position:"relative",overflow:"hidden",fontFamily:"'Courier New',monospace"}}>
+    <div style={{width:"100vw",height:"100vh",position:"relative",overflow:"hidden",fontFamily:"'Courier New',monospace"}}>
       <style>{`
         @keyframes pop{0%{transform:scale(0.2);opacity:0}55%{transform:scale(1.09)}100%{transform:scale(1);opacity:1}}
         @keyframes up{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
@@ -497,53 +465,90 @@ function onTM(e){
         .up{animation:up 0.22s ease-out}
         .ghost{animation:pulse 1s ease-in-out infinite}
         .shake{animation:shake 0.3s}
-        .own-stamp:hover{outline:1.5px dashed #c8a8d8;outline-offset:3px;border-radius:4px}
-        .btn-hover:hover{transform:translateY(-1px);box-shadow:0 6px 28px rgba(150,80,170,0.32)}
-        .btn-back:hover{background:#f5f0ff !important}
+        .fade-in{animation:fadeIn 0.4s ease-out}
+        @keyframes fadeIn{from{opacity:0;transform:translate(-50%,-48%) rotate(-1.5deg)}to{opacity:1;transform:translate(-50%,-50%) rotate(-1.5deg)}}
+        .own-stamp:hover{outline:1.5px dashed #8b3a2f;outline-offset:3px;border-radius:2px}
+        .btn-hover:hover{transform:translate(-1px,-1px);box-shadow:4px 4px 0 #1a1614 !important}
+        .btn-back:hover{background:#faf5e8 !important}
         ::-webkit-scrollbar{width:4px;height:4px}
-        ::-webkit-scrollbar-thumb{background:#e0d0e8;border-radius:3px}
+        ::-webkit-scrollbar-thumb{background:#d4c5a8;border-radius:2px}
         ::-webkit-scrollbar-track{background:transparent}
         
         /* Mobile responsive fixes */
         @media (max-width: 768px) {
-  .composer-modal {
-    max-height: 75dvh !important;
-    padding: 10px 12px calc(env(safe-area-inset-bottom, 0px) + 12px) !important;
-  }
-  .avatar-grid, .preset-grid, .hair-grid {
-    max-height: 180px !important;
-  }
-  .workspace-textarea {
-    height: 130px !important;
-  }
-  .hint-text {
-    white-space: normal !important;
-    max-width: 80vw !important;
-  }
-}
+          .composer-modal {
+            max-height: 80dvh !important;
+            padding: 12px 14px calc(env(safe-area-inset-bottom, 0px) + 16px) !important;
+          }
+          .avatar-grid, .hair-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+            max-height: 280px !important;
+          }
+          .preset-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+            max-height: 240px !important;
+          }
+          .avatar-grid pre, .hair-grid pre {
+            font-size: 8.5px !important;
+            height: 110px !important;
+          }
+          .preset-grid pre {
+            font-size: 8px !important;
+            height: 80px !important;
+          }
+          .avatar-grid > button > div, .hair-grid > button > div, .preset-grid > button > div {
+            font-size: 10px !important;
+          }
+          .workspace-textarea {
+            height: 170px !important;
+          }
+          .hint-text {
+            white-space: normal !important;
+            max-width: 80vw !important;
+          }
+        }
         
         /* Smaller phones */
         @media (max-width: 380px) {
           .composer-modal {
             max-height: 78dvh !important;
           }
-          .avatar-grid, .preset-grid, .hair-grid {
-            max-height: 180px !important;
+          .avatar-grid, .hair-grid {
+            max-height: 240px !important;
           }
         }
       `}</style>
 
+      {/* Welcome sticky note - first visit only */}
+      {showWelcome&&loaded&&(
+        <div style={{position:"absolute",inset:0,background:"rgba(244,237,224,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:50,padding:20,backdropFilter:"blur(2px)"}}>
+          <div className="fade-in" style={{background:"#fefcf7",padding:"40px 36px 32px",maxWidth:340,width:"100%",border:"1.5px solid #1a1614",boxShadow:"6px 6px 0 #1a1614",transform:"rotate(-1.5deg)",fontFamily:"'Courier New',monospace",position:"relative"}}>
+            <div style={{fontSize:14,color:"#1a1614",marginBottom:16,letterSpacing:0.5,lineHeight:1.4,fontWeight:"bold"}}>
+              welcome to creative canvas.
+            </div>
+            <div style={{fontSize:13,color:"#1a1614",lineHeight:1.7,marginBottom:24,fontStyle:"italic"}}>
+              leave a mark — a note, a message, a doodle.<br/>
+              for the world. or just for me.
+            </div>
+            <button onClick={dismissWelcome}
+              className="btn-hover"
+              style={{padding:"8px 18px",borderRadius:3,border:"1.5px solid #1a1614",background:"#8b3a2f",color:"#fefcf7",fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:12,cursor:"pointer",letterSpacing:1,boxShadow:"3px 3px 0 #1a1614",transition:"all 0.15s"}}>
+              enter →
+            </button>
+            <div style={{position:"absolute",bottom:-22,right:-4,fontSize:9,color:"#a8967a",fontStyle:"italic",letterSpacing:0.3}}>
+              — kept by zee
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* CANVAS */}
       <div ref={cvsRef}
-        style={{position:"absolute",inset:0,background:"#f9f5f0",cursor:placing?"crosshair":isDragging?"grabbing":"grab",touchAction:"none"}}
+        style={{position:"absolute",inset:0,background:"#f4ede0",cursor:placing?"crosshair":isDragging?"grabbing":"grab",touchAction:"none"}}
         onMouseDown={onCvsMD} onMouseMove={onCvsMM} onMouseUp={onCvsMU} onMouseLeave={onCvsMU}
-        onTouchStart={onTS} onTouchMove={onTM} onTouchEnd={()=>{
-  lt.current=null; 
-  pinchDist.current=null;
-  if(draggingStamp) onStampDragEnd();
-}}
+        onTouchStart={onTS} onTouchMove={onTM} onTouchEnd={()=>{lt.current=null;}}
         onClick={placeOnCanvas}>
-        <div style={{position:"absolute",inset:0,backgroundImage:"radial-gradient(circle,#d4b8df 1px,transparent 1px)",backgroundSize:"30px 30px",opacity:0.45,pointerEvents:"none"}}/>
+        <div style={{position:"absolute",inset:0,backgroundImage:"radial-gradient(circle,#c4b598 1px,transparent 1px)",backgroundSize:"30px 30px",opacity:0.5,pointerEvents:"none"}}/>
         <div style={{position:"absolute",left:0,top:0,transform:`translate(${pan.x}px,${pan.y}px) scale(${scl})`,transformOrigin:"0 0",width:1,height:1}}>
           {posts.map(p=>{
             const isOwn = p.session_id === sessionId;
@@ -553,7 +558,7 @@ function onTM(e){
               <pre key={p.id}
                 className={(popped===p.id?"pop ":"") + (isOwn?"own-stamp":"")}
                 onClick={clickable ? (e)=>onStampClick(p,e) : undefined}
-                onMouseDown={isDraggable ? (e)=>onStampDragStart(p,e) : undefined}onTouchStart={isDraggable ? (e)=>onStampTouchStart(p,e) : undefined}
+                onMouseDown={isDraggable ? (e)=>onStampDragStart(p,e) : undefined}
                 style={{...postBase, position:"absolute", left:p.x, top:p.y, color:p.color, cursor:isDraggable?"move":clickable?"pointer":"default", pointerEvents:clickable?"auto":"none"}}>
                 {p.content}
               </pre>
@@ -570,117 +575,116 @@ function onTM(e){
       {/* Empty state */}
       {loaded&&posts.length===0&&!open&&!placing&&(
         <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}>
-          <pre style={{margin:0,textAlign:"center",color:"#d4b8d4",fontSize:13,lineHeight:2.2}}>{`  ✦  ✦  ✦\n\nthe garden is empty\n\nbe the first to leave a mark`}</pre>
+          <pre style={{margin:0,textAlign:"center",color:"#a8967a",fontSize:13,lineHeight:2.2}}>{`  +  +  +\n\nthe canvas is empty\n\nbe the first to leave a mark`}</pre>
         </div>
       )}
 
       {/* First-visit hint */}
-      {hint&&!placing&&loaded&&(
-        <div className="hint-text" style={{position:"absolute",bottom:"calc(env(safe-area-inset-bottom, 0px) + 160px)",left:"50%",transform:"translateX(-50%)",fontSize:10,color:"#c8a8c8",animation:"fd 5s ease forwards",pointerEvents:"none",textAlign:"center",maxWidth:"90vw",lineHeight:1.5}}>
+      {hint&&!placing&&loaded&&!showWelcome&&(
+        <div className="hint-text" style={{position:"absolute",bottom:"calc(env(safe-area-inset-bottom, 0px) + 160px)",left:"50%",transform:"translateX(-50%)",fontSize:10,color:"#a8967a",animation:"fd 5s ease forwards",pointerEvents:"none",textAlign:"center",maxWidth:"90vw",lineHeight:1.5}}>
           drag or scroll to pan · ctrl+scroll to zoom · tap your own stamps to edit
         </div>
       )}
 
       {/* Placing banner */}
       {placing&&(
-        <div style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 16px)",left:"50%",transform:"translateX(-50%)",background:"rgba(255,252,249,0.96)",border:"1.5px solid #e0cce8",borderRadius:10,padding:"9px 18px",display:"flex",gap:14,alignItems:"center",fontSize:11,color:"#8a5c9e",boxShadow:"0 4px 24px rgba(120,80,140,0.12)",backdropFilter:"blur(10px)",zIndex:20,maxWidth:"90vw"}}>
+        <div style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 16px)",left:"50%",transform:"translateX(-50%)",background:"rgba(254,252,247,0.96)",border:"1.5px solid #d4c5a8",borderRadius:6,padding:"9px 18px",display:"flex",gap:14,alignItems:"center",fontSize:11,color:"#1a1614",boxShadow:"0 2px 12px rgba(26,22,20,0.1)",backdropFilter:"blur(10px)",zIndex:20,maxWidth:"90vw"}}>
           <span>click anywhere to place your mark</span>
-          <button onClick={()=>{setPlacing(false);setPending(null);setOpen(true);}} style={{background:"none",border:"none",cursor:"pointer",color:"#c0a0c0",fontSize:13,padding:0,lineHeight:1,flexShrink:0}}>✕</button>
+          <button onClick={()=>{setPlacing(false);setPending(null);setOpen(true);}} style={{background:"none",border:"none",cursor:"pointer",color:"#a8967a",fontSize:13,padding:0,lineHeight:1,flexShrink:0}}>✕</button>
         </div>
       )}
 
       {/* Admin indicator */}
       {admin&&!open&&(
-        <div style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 14px)",right:14,fontSize:10,color:"#c87090",background:"rgba(255,240,245,0.9)",padding:"4px 10px",borderRadius:12,border:"1.5px solid #f0c0d0",letterSpacing:1,zIndex:15}}>
-          ✦ admin mode
+        <div style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 14px)",right:14,fontSize:10,color:"#8b3a2f",background:"#fefcf7",padding:"4px 10px",borderRadius:4,border:"1.5px solid #8b3a2f",letterSpacing:1,zIndex:15}}>
+          + admin mode
         </div>
       )}
 
       {/* Stamp menu */}
       {stampMenu&&(
-        <div style={{position:"absolute",left:stampMenu.x,top:stampMenu.y,background:"rgba(255,252,249,0.98)",border:"1.5px solid #e0cce8",borderRadius:10,padding:5,boxShadow:"0 4px 20px rgba(120,80,140,0.18)",backdropFilter:"blur(10px)",zIndex:30,display:"flex",flexDirection:"column",gap:2,minWidth:96}}>
+        <div style={{position:"absolute",left:stampMenu.x,top:stampMenu.y,background:"#fefcf7",border:"1.5px solid #1a1614",borderRadius:4,padding:5,boxShadow:"3px 3px 0 #1a1614",zIndex:30,display:"flex",flexDirection:"column",gap:2,minWidth:96}}>
           {stampMenu.isOwn&&(
             <>
               <button onClick={editStamp} style={menuBtn}>✎ edit</button>
               <button onClick={duplicateStamp} style={menuBtn}>⎘ duplicate</button>
             </>
           )}
-          <button onClick={deleteStamp} style={{...menuBtn,color:"#c87090"}}>✕ delete</button>
-          <button onClick={()=>setStampMenu(null)} style={{...menuBtn,color:"#bbb"}}>cancel</button>
+          <button onClick={deleteStamp} style={{...menuBtn,color:"#8b3a2f"}}>✕ delete</button>
+          <button onClick={()=>setStampMenu(null)} style={{...menuBtn,color:"#a8967a"}}>cancel</button>
         </div>
       )}
 
       {/* Admin password prompt */}
       {pwPrompt&&(
-        <div style={{position:"absolute",top:"30%",left:"50%",transform:"translateX(-50%)",background:"rgba(255,252,249,0.98)",border:"1.5px solid #e0cce8",borderRadius:12,padding:"16px 18px",boxShadow:"0 6px 30px rgba(120,80,140,0.2)",backdropFilter:"blur(14px)",zIndex:40,minWidth:240}}
+        <div style={{position:"absolute",top:"30%",left:"50%",transform:"translateX(-50%)",background:"#fefcf7",border:"1.5px solid #1a1614",borderRadius:4,padding:"16px 18px",boxShadow:"4px 4px 0 #1a1614",zIndex:40,minWidth:240}}
              className={pwErr?"shake":""}>
-          <div style={{fontSize:11,color:"#8a5c9e",marginBottom:8,letterSpacing:1}}>✦ enter admin password</div>
+          <div style={{fontSize:11,color:"#1a1614",marginBottom:8,letterSpacing:1}}>+ enter admin password</div>
           <input type="password" value={pwInput} autoFocus
             onChange={e=>setPwInput(e.target.value)}
             onKeyDown={e=>{if(e.key==="Enter")checkPw();}}
-            style={{width:"100%",padding:"7px 10px",borderRadius:8,border:pwErr?"1.5px solid #c87090":"1.5px solid #e0cce8",fontFamily:"'Courier New',monospace",fontSize:12,background:"#fffaff",boxSizing:"border-box",outline:"none",color:"#555"}}/>
+            style={{width:"100%",padding:"7px 10px",borderRadius:3,border:pwErr?"1.5px solid #8b3a2f":"1.5px solid #d4c5a8",fontFamily:"'Courier New',monospace",fontSize:12,background:"#fefcf7",boxSizing:"border-box",outline:"none",color:"#1a1614"}}/>
           <div style={{display:"flex",gap:6,marginTop:10,justifyContent:"flex-end"}}>
-            <button onClick={()=>setPwPrompt(false)} style={{...menuBtn,color:"#bbb"}}>cancel</button>
-            <button onClick={checkPw} style={{padding:"6px 14px",borderRadius:8,border:"none",background:"linear-gradient(135deg,#a060c0,#d090b0)",color:"#fff",fontWeight:"bold",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>enter</button>
+            <button onClick={()=>setPwPrompt(false)} style={{...menuBtn,color:"#a8967a"}}>cancel</button>
+            <button onClick={checkPw} style={{padding:"6px 14px",borderRadius:3,border:"1.5px solid #1a1614",background:"#8b3a2f",color:"#fefcf7",fontWeight:"bold",fontSize:11,cursor:"pointer",fontFamily:"inherit",boxShadow:"2px 2px 0 #1a1614"}}>enter</button>
           </div>
         </div>
       )}
 
       {/* Zoom controls */}
-      {!open&&(
+      {!open&&!showWelcome&&(
         <div style={{position:"absolute",bottom:"calc(env(safe-area-inset-bottom, 0px) + 90px)",right:18,display:"flex",flexDirection:"column",gap:5,zIndex:10}}>
-        {[
-  ...(posts.filter(p=>p.session_id===sessionId).length>0 ? [{l:"✦",f:()=>{
-    const mine = posts.filter(p=>p.session_id===sessionId);
-    const avgX = mine.reduce((s,p)=>s+Number(p.x),0)/mine.length;
-    const avgY = mine.reduce((s,p)=>s+Number(p.y),0)/mine.length;
-    setPan({x:window.innerWidth/2-avgX, y:window.innerHeight/2-avgY});
-    setScl(1);
-  }}] : []),
-  {l:"+",f:()=>setScl(s=>Math.min(s*1.2,7))},
-  {l:"−",f:()=>setScl(s=>Math.max(s*0.8,0.1))},
-  {l:"⌂",f:()=>{setPan({x:window.innerWidth/2, y:window.innerHeight/2});setScl(1);}}
-].map(b=>(
-            <button key={b.l} onClick={b.f} style={{width:32,height:32,borderRadius:8,border:"1.5px solid #e0d0e8",background:"rgba(255,252,249,0.95)",cursor:"pointer",fontSize:b.l==="⌂"?12:16,color:"#9b7e9b",display:"flex",alignItems:"center",justifyContent:"center",backdropFilter:"blur(4px)",boxShadow:"0 2px 8px rgba(120,80,140,0.12)"}}>{b.l}</button>
+          {[
+            ...(posts.filter(p=>p.session_id===sessionId).length>0 ? [{l:"✦",f:()=>{
+              const mine = posts.filter(p=>p.session_id===sessionId);
+              const avgX = mine.reduce((s,p)=>s+Number(p.x),0)/mine.length;
+              const avgY = mine.reduce((s,p)=>s+Number(p.y),0)/mine.length;
+              setPan({x:window.innerWidth/2-avgX, y:window.innerHeight/2-avgY});
+              setScl(1);
+            }}] : []),
+            {l:"+",f:()=>setScl(s=>Math.min(s*1.2,7))},
+            {l:"−",f:()=>setScl(s=>Math.max(s*0.8,0.1))},
+            {l:"⌂",f:()=>{setPan({x:window.innerWidth/2, y:window.innerHeight/2});setScl(1);}}
+          ].map(b=>(
+            <button key={b.l} onClick={b.f} style={{width:32,height:32,borderRadius:4,border:"1.5px solid #1a1614",background:"#fefcf7",cursor:"pointer",fontSize:b.l==="⌂"?12:16,color:"#1a1614",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"2px 2px 0 #1a1614",fontFamily:"'Courier New',monospace"}}>{b.l}</button>
           ))}
         </div>
       )}
 
-      {/* Counter - with triple-tap handler */}
-{posts.length>0&&!open&&(
-  <div 
-    onClick={handleCounterTap}
-    style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 14px)",left:"50%",transform:"translateX(-50%)",fontSize:10,color:"#c8a8c8",letterSpacing:1,whiteSpace:"nowrap",cursor:"default",textAlign:"center",lineHeight:1.5}}>
-    {posts.length} mark{posts.length!==1?"s":""}
-    <div style={{fontSize:8,color:"#d8b8d8",letterSpacing:0.8,marginTop:2}}>marks left by strangers</div>
-  </div>
-)}
+      {/* Counter - bottom left as gallery label */}
+      {posts.length>0&&!open&&(
+        <div 
+          onClick={handleCounterTap}
+          style={{position:"absolute",bottom:"calc(env(safe-area-inset-bottom, 0px) + 24px)",left:18,fontSize:11,color:"#1a1614",letterSpacing:0.5,cursor:"default",fontFamily:"'Courier New',monospace",zIndex:5}}>
+          — {posts.length} mark{posts.length!==1?"s":""} from strangers
+        </div>
+      )}
 
       {/* Leave a mark CTA */}
-      {!open&&!placing&&(
+      {!open&&!placing&&!showWelcome&&(
         <button onClick={()=>{setOpen(true); setEditingId(null);}}
           className="btn-hover"
-          style={{...btnHoverStyle,position:"absolute",bottom:"calc(env(safe-area-inset-bottom, 0px) + 90px)",left:"50%",transform:"translateX(-50%)",padding:"11px 26px",borderRadius:28,border:"none",background:"linear-gradient(135deg,#a060c0,#d090b0)",color:"#fff",fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:13,cursor:"pointer",letterSpacing:1,boxShadow:"0 4px 24px rgba(150,80,170,0.28)",whiteSpace:"nowrap",zIndex:10}}>
-          ✦ leave a mark
+          style={{...btnHoverStyle,position:"absolute",bottom:"calc(env(safe-area-inset-bottom, 0px) + 32px)",left:"50%",transform:"translateX(-50%)",padding:"11px 26px",borderRadius:4,border:"1.5px solid #1a1614",background:"#8b3a2f",color:"#fefcf7",fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:13,cursor:"pointer",letterSpacing:1.5,boxShadow:"3px 3px 0 #1a1614",whiteSpace:"nowrap",zIndex:10}}>
+          + leave a mark
         </button>
       )}
 
       {/* COMPOSER */}
       {open&&(
-        <div className="up composer-modal" style={{position:"absolute",bottom:0,left:"50%",transform:"translateX(-50%)",width:480,maxWidth:"calc(100vw - 32px)",background:"rgba(255,252,249,0.98)",borderRadius:"18px 18px 0 0",boxShadow:"0 -6px 40px rgba(120,80,140,0.15)",padding:"14px 16px calc(env(safe-area-inset-bottom, 0px) + 22px)",backdropFilter:"blur(14px)",border:"1.5px solid #eedde8",borderBottom:"none",zIndex:20,maxHeight:"85dvh",display:"flex",flexDirection:"column"}}>
+        <div className="up composer-modal" style={{position:"absolute",bottom:0,left:"50%",transform:"translateX(-50%)",width:480,maxWidth:"calc(100vw - 32px)",background:"#fefcf7",borderRadius:"8px 8px 0 0",boxShadow:"-3px 0 0 #1a1614, 3px 0 0 #1a1614, 0 -3px 0 #1a1614",padding:"14px 16px calc(env(safe-area-inset-bottom, 0px) + 22px)",border:"1.5px solid #1a1614",borderBottom:"none",zIndex:20,maxHeight:"85dvh",display:"flex",flexDirection:"column"}}>
 
           {/* Tab bar */}
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-            <div style={{display:"flex",border:"1.5px solid #e0cce8",borderRadius:9,overflow:"hidden"}}>
-              {[["avatar","✦ avatar"],["preset","✿ preset"],["text","✎ text"]].map(([t,lbl])=>(
-                <button key={t} onClick={()=>{setTab(t); if(t!=="text") setEditingId(null);}} style={{padding:"6px 14px",border:"none",background:tab===t?"#f0e0ff":"transparent",color:tab===t?"#8a5c9e":"#bbb",fontFamily:"inherit",fontSize:11,cursor:"pointer",fontWeight:tab===t?"bold":"normal"}}>{lbl}</button>
+            <div style={{display:"flex",border:"1.5px solid #1a1614",borderRadius:3,overflow:"hidden"}}>
+              {[["avatar","avatar"],["preset","preset"],["text","text"]].map(([t,lbl])=>(
+                <button key={t} onClick={()=>{setTab(t); if(t!=="text") setEditingId(null);}} style={{padding:"6px 14px",border:"none",background:tab===t?"#1a1614":"transparent",color:tab===t?"#fefcf7":"#1a1614",fontFamily:"'Courier New',monospace",fontSize:11,cursor:"pointer",fontWeight:tab===t?"bold":"normal",letterSpacing:0.5}}>{lbl}</button>
               ))}
             </div>
-            <button onClick={()=>{setOpen(false); setEditingId(null);}} style={{background:"none",border:"none",cursor:"pointer",color:"#c8a8c0",fontSize:14,padding:0,lineHeight:1}}>✕</button>
+            <button onClick={()=>{setOpen(false); setEditingId(null);}} style={{background:"none",border:"none",cursor:"pointer",color:"#1a1614",fontSize:14,padding:0,lineHeight:1}}>✕</button>
           </div>
 
-          <div style={{fontSize:9,color:"#c8a8c8",letterSpacing:0.6,marginBottom:10,textAlign:"center",fontFamily:"sans-serif"}}>
-            feel free to edit and show your creativity ✦
+          <div style={{fontSize:10,color:"#a8967a",letterSpacing:0.4,marginBottom:10,textAlign:"center",fontFamily:"'Courier New',monospace",fontStyle:"italic"}}>
+            take your time. this is yours.
           </div>
 
           {/* SCROLLABLE CONTENT */}
@@ -689,14 +693,18 @@ function onTM(e){
           {/* AVATAR TAB - WIZARD */}
           {tab==="avatar" && (
             <>
-              <div style={{fontSize:9,color:"#b898c8",fontWeight:"bold",letterSpacing:1.2,textTransform:"uppercase",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div style={{fontSize:11,color:"#1a1614",letterSpacing:0.3,marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center",fontFamily:"'Courier New',monospace"}}>
                 <span>
-                  {step===1 && "step 1 — choose your face"}
-                  {step===2 && "step 2 — choose your hair"}
-                  {step===3 && "step 3 — make it yours"}
+                  {step===1 && "pick a face"}
+                  {step===2 && "pick your hair"}
+                  {step===3 && "make it yours"}
                 </span>
-                <span style={{color:"#d4b8d4"}}>
-                  {step}/{face?.complete?2:3}
+                <span style={{color:"#a8967a",fontSize:14,letterSpacing:2}}>
+                  {face?.complete ? (
+                    <>{step===1?"●":"○"} {step===3?"●":"○"}</>
+                  ) : (
+                    <>{step===1?"●":"○"} {step===2?"●":"○"} {step===3?"●":"○"}</>
+                  )}
                 </span>
               </div>
 
@@ -705,9 +713,9 @@ function onTM(e){
                 <div className="avatar-grid" style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,maxHeight:330,overflowY:"auto",paddingRight:3,paddingBottom:3}}>
                   {FACES.map(f=>(
                     <button key={f.id} onClick={()=>selectFace(f)}
-                      style={{padding:"6px 4px",borderRadius:8,border:face?.id===f.id?"1.5px solid #c084d4":"1.5px solid #e8d8e8",background:face?.id===f.id?"#f5e8ff":"#fffaff",cursor:"pointer",textAlign:"center",overflow:"hidden"}}>
-                      <pre style={{margin:0,fontSize:6.5,lineHeight:1.35,color:face?.id===f.id?"#8a5c9e":"#999",fontFamily:"'Courier New',monospace",whiteSpace:"pre",height:78,overflow:"hidden"}}>{f.art}</pre>
-                      <div style={{fontSize:8,color:face?.id===f.id?"#a070c0":"#bbb",marginTop:3,fontFamily:"sans-serif",letterSpacing:0.3}}>{f.name}{f.complete?" ●":""}</div>
+                      style={{padding:"6px 4px",borderRadius:3,border:face?.id===f.id?"2px solid #8b3a2f":"1.5px solid #d4c5a8",background:face?.id===f.id?"#fefcf7":"#faf5e8",cursor:"pointer",textAlign:"center",overflow:"hidden"}}>
+                      <pre style={{margin:0,fontSize:6.5,lineHeight:1.35,color:face?.id===f.id?"#1a1614":"#5a4a3a",fontFamily:"'Courier New',monospace",whiteSpace:"pre",height:78,overflow:"hidden"}}>{f.art}</pre>
+                      <div style={{fontSize:8,color:face?.id===f.id?"#8b3a2f":"#a8967a",marginTop:3,fontFamily:"'Courier New',monospace",letterSpacing:0.3}}>{f.name}{f.complete?" ●":""}</div>
                     </button>
                   ))}
                 </div>
@@ -720,9 +728,9 @@ function onTM(e){
                     const previewArt = combineHF(h, face || FACES[6], "");
                     return (
                       <button key={h.id} onClick={()=>selectHair(h)}
-                        style={{padding:"6px 4px",borderRadius:8,border:hair?.id===h.id?"1.5px solid #c084d4":"1.5px solid #e8d8e8",background:hair?.id===h.id?"#f5e8ff":"#fffaff",cursor:"pointer",textAlign:"center",overflow:"hidden"}}>
-                        <pre style={{margin:0,fontSize:6.5,lineHeight:1.35,color:hair?.id===h.id?"#8a5c9e":"#999",fontFamily:"'Courier New',monospace",whiteSpace:"pre",height:78,overflow:"hidden"}}>{previewArt}</pre>
-                        <div style={{fontSize:8,color:hair?.id===h.id?"#a070c0":"#bbb",marginTop:3,fontFamily:"sans-serif",letterSpacing:0.3}}>{h.name}</div>
+                        style={{padding:"6px 4px",borderRadius:3,border:hair?.id===h.id?"2px solid #8b3a2f":"1.5px solid #d4c5a8",background:hair?.id===h.id?"#fefcf7":"#faf5e8",cursor:"pointer",textAlign:"center",overflow:"hidden"}}>
+                        <pre style={{margin:0,fontSize:6.5,lineHeight:1.35,color:hair?.id===h.id?"#1a1614":"#5a4a3a",fontFamily:"'Courier New',monospace",whiteSpace:"pre",height:78,overflow:"hidden"}}>{previewArt}</pre>
+                        <div style={{fontSize:8,color:hair?.id===h.id?"#8b3a2f":"#a8967a",marginTop:3,fontFamily:"'Courier New',monospace",letterSpacing:0.3}}>{h.name}</div>
                       </button>
                     );
                   })}
@@ -734,20 +742,20 @@ function onTM(e){
                 <>
                   <textarea ref={wsRef} value={workspace} onChange={e=>setWorkspace(e.target.value)}
                     className="workspace-textarea"
-                    style={{width:"100%",height:220,padding:"10px 12px",borderRadius:10,border:"1.5px solid #e0cce8",fontFamily:"'Courier New',monospace",fontSize:12,background:"#fffaff",boxSizing:"border-box",resize:"none",outline:"none",color:col,lineHeight:1.4,caretColor:col,whiteSpace:"pre"}}
+                    style={{width:"100%",height:220,padding:"10px 12px",borderRadius:3,border:"1.5px solid #d4c5a8",fontFamily:"'Courier New',monospace",fontSize:12,background:"#faf5e8",boxSizing:"border-box",resize:"none",outline:"none",color:col,lineHeight:1.4,caretColor:col,whiteSpace:"pre"}}
                     placeholder="your character appears here · edit it freely"/>
                 </>
               )}
 
               {/* Nav */}
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:12,gap:8,position:"sticky",bottom:0,background:"rgba(255,252,249,0.98)",paddingTop:8,paddingBottom:2,zIndex:5}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:12,gap:8,position:"sticky",bottom:0,background:"#fefcf7",paddingTop:8,paddingBottom:2,zIndex:5}}>
                 <button onClick={backStep} disabled={step===1}
                   className={step>1?"btn-back":""}
-                  style={{...btnHoverStyle,padding:"7px 14px",borderRadius:8,border:"1.5px solid #e0cce8",background:step===1?"#f5f0f5":"#fffaff",color:step===1?"#ddd":"#9b7e9b",cursor:step===1?"default":"pointer",fontFamily:"inherit",fontSize:11}}>← back</button>
+                  style={{...btnHoverStyle,padding:"7px 14px",borderRadius:3,border:"1.5px solid #1a1614",background:step===1?"#ede4d0":"#fefcf7",color:step===1?"#c4b598":"#1a1614",cursor:step===1?"default":"pointer",fontFamily:"'Courier New',monospace",fontSize:11,boxShadow:step===1?"none":"2px 2px 0 #1a1614"}}>← back</button>
                 {step<3 && (
                   <button onClick={nextStep} disabled={step===1?!face:!hair}
                     className={(step===1?face:hair)?"btn-hover":""}
-                    style={{...btnHoverStyle,padding:"7px 18px",borderRadius:8,border:"none",background:(step===1?face:hair)?"linear-gradient(135deg,#a060c0,#d090b0)":"#e8e0ee",color:(step===1?face:hair)?"#fff":"#ccc",cursor:(step===1?face:hair)?"pointer":"default",fontFamily:"inherit",fontWeight:"bold",fontSize:11,letterSpacing:0.5}}>next →</button>
+                    style={{...btnHoverStyle,padding:"7px 18px",borderRadius:3,border:"1.5px solid #1a1614",background:(step===1?face:hair)?"#8b3a2f":"#ede4d0",color:(step===1?face:hair)?"#fefcf7":"#c4b598",cursor:(step===1?face:hair)?"pointer":"default",fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:11,letterSpacing:0.5,boxShadow:(step===1?face:hair)?"2px 2px 0 #1a1614":"none"}}>next →</button>
                 )}
                 {step===3 && <div/>}
               </div>
@@ -757,7 +765,7 @@ function onTM(e){
           {/* PRESET TAB */}
           {tab==="preset" && (
             <>
-              <div style={{background:"#fff8ff",borderRadius:10,padding:"12px 10px",marginBottom:12,minHeight:140,display:"flex",alignItems:"center",justifyContent:"center",border:"1.5px solid #f0e0f8"}}>
+              <div style={{background:"#faf5e8",borderRadius:3,padding:"12px 10px",marginBottom:12,minHeight:140,display:"flex",alignItems:"center",justifyContent:"center",border:"1.5px solid #d4c5a8"}}>
                 <pre style={{margin:0,fontSize:11,lineHeight:1.4,color:col,fontFamily:"'Courier New',monospace",whiteSpace:"pre"}}>
                   {preset ? preset.art + (presetText.trim()?"\n"+presetText.trim():"") : "pick a preset below"}
                 </pre>
@@ -765,15 +773,15 @@ function onTM(e){
               <div className="preset-grid" style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,maxHeight:200,overflowY:"auto",paddingRight:3,paddingBottom:3}}>
                 {PRESETS.map((p,i)=>(
                   <button key={i} onClick={()=>setPreset(p)}
-                    style={{padding:"6px 4px",borderRadius:8,border:preset?.name===p.name?"1.5px solid #c084d4":"1.5px solid #e8d8e8",background:preset?.name===p.name?"#f5e8ff":"#fffaff",cursor:"pointer",textAlign:"center",overflow:"hidden"}}>
-                    <pre style={{margin:0,fontSize:6,lineHeight:1.35,color:preset?.name===p.name?"#8a5c9e":"#999",fontFamily:"'Courier New',monospace",whiteSpace:"pre",height:62,overflow:"hidden"}}>{p.art}</pre>
-                    <div style={{fontSize:8,color:preset?.name===p.name?"#a070c0":"#bbb",marginTop:3,fontFamily:"sans-serif",letterSpacing:0.3}}>{p.name}</div>
+                    style={{padding:"6px 4px",borderRadius:3,border:preset?.name===p.name?"2px solid #8b3a2f":"1.5px solid #d4c5a8",background:preset?.name===p.name?"#fefcf7":"#faf5e8",cursor:"pointer",textAlign:"center",overflow:"hidden"}}>
+                    <pre style={{margin:0,fontSize:6,lineHeight:1.35,color:preset?.name===p.name?"#1a1614":"#5a4a3a",fontFamily:"'Courier New',monospace",whiteSpace:"pre",height:62,overflow:"hidden"}}>{p.art}</pre>
+                    <div style={{fontSize:8,color:preset?.name===p.name?"#8b3a2f":"#a8967a",marginTop:3,fontFamily:"'Courier New',monospace",letterSpacing:0.3}}>{p.name}</div>
                   </button>
                 ))}
               </div>
               <input value={presetText} onChange={e=>setPresetText(e.target.value)}
                 placeholder="add a name or message below..."
-                style={{width:"100%",marginTop:10,padding:"8px 10px",borderRadius:8,border:"1.5px solid #e8d5e8",fontFamily:"'Courier New',monospace",fontSize:12,background:"#fffaff",boxSizing:"border-box",outline:"none",color:"#888"}}/>
+                style={{width:"100%",marginTop:10,padding:"8px 10px",borderRadius:3,border:"1.5px solid #d4c5a8",fontFamily:"'Courier New',monospace",fontSize:12,background:"#faf5e8",boxSizing:"border-box",outline:"none",color:"#1a1614"}}/>
             </>
           )}
 
@@ -781,13 +789,13 @@ function onTM(e){
           {tab==="text" && (
             <>
               {isEditing && (
-                <div style={{fontSize:10,color:"#a060c0",marginBottom:6,letterSpacing:0.5}}>✎ editing your stamp</div>
+                <div style={{fontSize:10,color:"#8b3a2f",marginBottom:6,letterSpacing:0.5}}>✎ editing your stamp</div>
               )}
               <textarea ref={taRef} value={freeText} onChange={e=>setFreeText(e.target.value)} autoFocus
-                style={{width:"100%",height:200,padding:"10px 12px",borderRadius:10,border:"1.5px solid #e0cce8",fontFamily:"'Courier New',monospace",fontSize:13,background:"#fffaff",boxSizing:"border-box",resize:"none",outline:"none",color:col,lineHeight:1.5,caretColor:col,whiteSpace:"pre"}}
-                placeholder={"paste type or haiku\n\nfeel free to make it yours."}/>
+                style={{width:"100%",height:200,padding:"10px 12px",borderRadius:3,border:"1.5px solid #d4c5a8",fontFamily:"'Courier New',monospace",fontSize:13,background:"#faf5e8",boxSizing:"border-box",resize:"none",outline:"none",color:col,lineHeight:1.5,caretColor:col,whiteSpace:"pre"}}
+                placeholder={"paste, type, or haiku\n\nfeel free to make it yours."}/>
               <div style={{marginTop:10}}>
-                <div style={{fontSize:9,color:"#b898c8",fontWeight:"bold",letterSpacing:1.2,textTransform:"uppercase",marginBottom:5}}>ornaments · click to insert</div>
+                <div style={{fontSize:10,color:"#a8967a",letterSpacing:0.3,marginBottom:5,fontFamily:"'Courier New',monospace",fontStyle:"italic"}}>little decorations</div>
                 <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
                   {ORNS.map((o,i)=>(
                     <button key={i} onClick={()=>{
@@ -795,7 +803,7 @@ function onTM(e){
                       const s=ta.selectionStart, e=ta.selectionEnd;
                       setFreeText(freeText.slice(0,s)+o+freeText.slice(e));
                       requestAnimationFrame(()=>{ ta.focus(); ta.selectionStart=ta.selectionEnd=s+o.length; });
-                    }} style={{padding:"3px 8px",borderRadius:5,border:"1px solid #e8d5e8",background:"#fffaff",cursor:"pointer",fontFamily:"'Courier New',monospace",fontSize:13,color:"#666",minWidth:24}}>{o}</button>
+                    }} style={{padding:"3px 8px",borderRadius:3,border:"1.5px solid #d4c5a8",background:"#faf5e8",cursor:"pointer",fontFamily:"'Courier New',monospace",fontSize:13,color:"#1a1614",minWidth:24}}>{o}</button>
                   ))}
                 </div>
               </div>
@@ -806,15 +814,15 @@ function onTM(e){
           </div>
 
           {/* Footer */}
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:14,paddingTop:10,borderTop:"1px solid #f0e0f0",flexShrink:0}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:14,paddingTop:10,borderTop:"1.5px solid #d4c5a8",flexShrink:0}}>
             <div style={{display:"flex",gap:6,alignItems:"center"}}>
               {COLS.map(c=>(
-                <button key={c} onClick={()=>setCol(c)} style={{width:20,height:20,borderRadius:"50%",background:c,cursor:"pointer",border:"none",boxShadow:col===c?`0 0 0 2px white,0 0 0 3.5px ${c}`:"none",transition:"box-shadow 0.15s"}}/>
+                <button key={c} onClick={()=>setCol(c)} style={{width:20,height:20,borderRadius:"50%",background:c,cursor:"pointer",border:col===c?"2px solid #1a1614":"1.5px solid #d4c5a8",transition:"all 0.15s",padding:0}}/>
               ))}
             </div>
             <button onClick={stampOrUpdate} disabled={!canStamp}
               className={canStamp?"btn-hover":""}
-              style={{...btnHoverStyle,padding:"9px 22px",borderRadius:10,border:"none",background:canStamp?"linear-gradient(135deg,#a060c0,#d090b0)":"#e8e0ee",color:canStamp?"#fff":"#ccc",fontFamily:"inherit",fontWeight:"bold",fontSize:12,cursor:canStamp?"pointer":"default",letterSpacing:0.8}}>
+              style={{...btnHoverStyle,padding:"9px 22px",borderRadius:3,border:"1.5px solid #1a1614",background:canStamp?"#8b3a2f":"#ede4d0",color:canStamp?"#fefcf7":"#c4b598",fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:12,cursor:canStamp?"pointer":"default",letterSpacing:0.8,boxShadow:canStamp?"2px 2px 0 #1a1614":"none"}}>
               {isEditing?"update ✓":"stamp it →"}
             </button>
           </div>
@@ -824,4 +832,4 @@ function onTM(e){
   );
 }
 
-const menuBtn = { padding:"5px 10px", borderRadius:6, border:"none", background:"transparent", cursor:"pointer", color:"#8a5c9e", fontFamily:"'Courier New',monospace", fontSize:11, textAlign:"left", letterSpacing:0.3 };
+const menuBtn = { padding:"5px 10px", borderRadius:3, border:"none", background:"transparent", cursor:"pointer", color:"#1a1614", fontFamily:"'Courier New',monospace", fontSize:11, textAlign:"left", letterSpacing:0.3 };
