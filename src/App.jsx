@@ -768,8 +768,7 @@ const postBase = { margin:0, padding:0, whiteSpace:"pre", fontFamily:"'Courier N
 
       {/* COMPOSER */}
       {open&&(
-        <div className="up composer-modal" style={{position:"absolute",bottom:0,left:"50%",transform:"translateX(-50%)",width:480,maxWidth:"calc(100vw - 32px)",background:"#fefcf7",borderRadius:"8px 8px 0 0",boxShadow:"-3px 0 0 #1a1614, 3px 0 0 #1a1614, 0 -3px 0 #1a1614",padding:"14px 16px calc(env(safe-area-inset-bottom, 0px) + 22px)",border:"1.5px solid #1a1614",borderBottom:"none",zIndex:20,maxHeight:"85dvh",display:"flex",flexDirection:"column"}}>
-
+<div className="up composer-modal" style={{position:"fixed",bottom:0,left:16,right:16,width:"auto",maxWidth:480,background:"#fefcf7",borderRadius:"8px 8px 0 0",boxShadow:"-3px 0 0 #1a1614, 3px 0 0 #1a1614, 0 -3px 0 #1a1614",padding:"14px 16px calc(env(safe-area-inset-bottom, 0px) + 22px)",border:"1.5px solid #1a1614",borderBottom:"none",zIndex:20,maxHeight:"85dvh",display:"flex",flexDirection:"column"}}>
           {/* Tab bar */}
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
             <div style={{display:"flex",border:"1.5px solid #1a1614",borderRadius:3,overflow:"hidden"}}>
