@@ -247,21 +247,27 @@ export default function App() {
     }
   }
   function onTM(e){
-    if(e.touches.length===2 && pinchDist.current !== null) {
-      const dx = e.touches[0].clientX - e.touches[1].clientX;
-      const dy = e.touches[0].clientY - e.touches[1].clientY;
-      const newDist = Math.sqrt(dx*dx + dy*dy);
-      const scaleFactor = newDist / pinchDist.current;
-      setScl(s=>Math.min(Math.max(s*scaleFactor,0.1),7));
-      pinchDist.current = newDist;
-      return;
-    }
-    if(!lt.current||e.touches.length!==1) return;
-    const dx=e.touches[0].clientX-lt.current.x, dy=e.touches[0].clientY-lt.current.y;
-    lt.current={x:e.touches[0].clientX,y:e.touches[0].clientY};
-    setPan(p=>({x:p.x+dx,y:p.y+dy}));
+  if(e.touches.length===2 && pinchDist.current !== null) {
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    const newDist = Math.sqrt(dx*dx + dy*dy);
+    const factor = newDist / pinchDist.current;
+    // Zoom around the midpoint between two fingers
+    const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+    const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    setPan(p=>({
+      x: midX - factor * (midX - p.x),
+      y: midY - factor * (midY - p.y)
+    }));
+    setScl(s=>Math.min(Math.max(s*factor,0.1),7));
+    pinchDist.current = newDist;
+    return;
   }
-
+  if(!lt.current||e.touches.length!==1) return;
+  const dx=e.touches[0].clientX-lt.current.x, dy=e.touches[0].clientY-lt.current.y;
+  lt.current={x:e.touches[0].clientX,y:e.touches[0].clientY};
+  setPan(p=>({x:p.x+dx,y:p.y+dy}));
+}
   // Stamp drag handlers
   function onStampDragStart(stamp, e) {
     e.stopPropagation();
@@ -509,15 +515,14 @@ export default function App() {
   const isEditing = !!editingId;
 
   // shared post styling
-  const postBase = { margin:0, padding:0, whiteSpace:"pre", fontFamily:"'Courier New',monospace", fontSize:14, lineHeight:1.4, userSelect:"none", transformOrigin:"top left" };
-
+const postBase = { margin:0, padding:0, whiteSpace:"pre", fontFamily:"'Courier New',monospace", fontSize:14, lineHeight:1.4, fontWeight:"bold", userSelect:"none", transformOrigin:"top left" };
   // Button hover styles
   const btnHoverStyle = {
     transition: "all 0.2s ease",
   };
 
   return (
-    <div style={{width:"100vw",height:"100vh",position:"relative",overflow:"hidden",fontFamily:"'Courier New',monospace"}}>
+    <div style={{width:"100vw",height:"100dvh",position:"relative",overflow:"hidden",fontFamily:"'Courier New',monospace"}}>
       <style>{`
         @keyframes pop{
           0%{transform:scale(0.4) rotate(-8deg);opacity:0}
@@ -735,7 +740,10 @@ export default function App() {
             {l:"−",f:()=>setScl(s=>Math.max(s*0.8,0.1))},
             {l:"⌂",f:()=>{setPan({x:window.innerWidth/2, y:window.innerHeight/2});setScl(1);}}
           ].map(b=>(
-            <button key={b.l} onClick={b.f} style={{width:32,height:32,borderRadius:4,border:"1.5px solid #1a1614",background:"#fefcf7",cursor:"pointer",fontSize:b.l==="⌂"?12:16,color:"#1a1614",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"2px 2px 0 #1a1614",fontFamily:"'Courier New',monospace"}}>{b.l}</button>
+            <button key={b.l} onClick={b.f}
+  title={b.l==="✦"?"find my mark":b.l==="⌂"?"home":b.l==="+""?"zoom in":"zoom out"}
+  className="btn-hover zoom-btn"
+  style={{width:32,height:32,borderRadius:4,border:"1.5px solid #1a1614",background:"#fefcf7",cursor:"pointer",fontSize:b.l==="⌂"?12:16,color:"#1a1614",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"2px 2px 0 #1a1614",fontFamily:"'Courier New',monospace",transition:"all 0.15s"}}>{b.l}</button>
           ))}
         </div>
       )}
