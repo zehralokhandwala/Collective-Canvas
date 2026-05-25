@@ -775,9 +775,10 @@ const postBase = { margin:0, padding:0, whiteSpace:"pre", fontFamily:"'Courier N
             {l:"−",f:()=>setScl(s=>Math.max(s*0.8,0.1))},
             {l:"⌂",f:()=>{setPan({x:window.innerWidth/2, y:window.innerHeight/2});setScl(1);}}
           ].map(b=>(
-            <button key={b.l} onClick={b.f}
-  data-tooltip={b.l==="✦"?"find my mark":b.l==="⌂"?"home":b.l==="+"?"zoom in":"zoom out"}
-  className="btn-hover"
+<button key={b.l} onClick={b.f}
+              data-tooltip={b.l==="✦"?"find my mark":b.l==="⌂"?"home":b.l==="+"?"zoom in":"zoom out"}
+              className="btn-hover"
+              style={{width:32,height:32,borderRadius:4,border:"1.5px solid #1a1614",background:"#fefcf7",cursor:"pointer",fontSize:b.l==="⌂"?12:16,color:"#1a1614",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"2px 2px 0 #1a1614",fontFamily:"'Courier New',monospace",transition:"all 0.12s ease"}}>{b.l}</button>
           ))}
         </div>
       )}
