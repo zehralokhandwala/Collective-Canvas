@@ -247,21 +247,28 @@ export default function App() {
     }
   }
   function onTM(e){
-    if(e.touches.length===2 && pinchDist.current !== null) {
-      const dx = e.touches[0].clientX - e.touches[1].clientX;
-      const dy = e.touches[0].clientY - e.touches[1].clientY;
-      const newDist = Math.sqrt(dx*dx + dy*dy);
-      const scaleFactor = newDist / pinchDist.current;
-      setScl(s=>Math.min(Math.max(s*scaleFactor,0.1),7));
-      pinchDist.current = newDist;
-      return;
-    }
-    if(!lt.current||e.touches.length!==1) return;
-    const dx=e.touches[0].clientX-lt.current.x, dy=e.touches[0].clientY-lt.current.y;
-    lt.current={x:e.touches[0].clientX,y:e.touches[0].clientY};
-    setPan(p=>({x:p.x+dx,y:p.y+dy}));
+  if(e.touches.length===2 && pinchDist.current !== null) {
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    const newDist = Math.sqrt(dx*dx + dy*dy);
+    const factor = newDist / pinchDist.current;
+    // Midpoint between the two fingers (in screen coords)
+    const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+    const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    // Adjust pan so the zoom happens around the midpoint, not the origin
+    setPan(p=>({
+      x: midX - factor * (midX - p.x),
+      y: midY - factor * (midY - p.y)
+    }));
+    setScl(s=>Math.min(Math.max(s*factor,0.1),7));
+    pinchDist.current = newDist;
+    return;
   }
-
+  if(!lt.current||e.touches.length!==1) return;
+  const dx=e.touches[0].clientX-lt.current.x, dy=e.touches[0].clientY-lt.current.y;
+  lt.current={x:e.touches[0].clientX,y:e.touches[0].clientY};
+  setPan(p=>({x:p.x+dx,y:p.y+dy}));
+}
   // Stamp drag handlers
   function onStampDragStart(stamp, e) {
     e.stopPropagation();
