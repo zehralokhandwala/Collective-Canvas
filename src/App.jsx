@@ -524,83 +524,118 @@ const postBase = { margin:0, padding:0, whiteSpace:"pre", fontFamily:"'Courier N
   return (
     <div style={{width:"100vw",height:"100dvh",position:"relative",overflow:"hidden",fontFamily:"'Courier New',monospace"}}>
       <style>{`
-        @keyframes pop{
-          0%{transform:scale(0.4) rotate(-8deg);opacity:0}
-          40%{transform:scale(1.15) rotate(3deg);opacity:1}
-          70%{transform:scale(0.95) rotate(-1deg)}
-          100%{transform:scale(1) rotate(0);opacity:1}
-        }
-        @keyframes stampImpression{
-          0%{outline:3px solid #8b3a2f;outline-offset:0;opacity:1}
-          100%{outline:3px solid #8b3a2f;outline-offset:20px;opacity:0}
-        }
-        @keyframes stampedToast{
-          0%{transform:translate(-50%,-20px);opacity:0}
-          15%,80%{transform:translate(-50%,0);opacity:1}
-          100%{transform:translate(-50%,-10px);opacity:0}
-        }
-        @keyframes up{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
-        @keyframes fd{0%,70%{opacity:1}100%{opacity:0}}
-        @keyframes pulse{0%,100%{opacity:0.35}50%{opacity:0.75}}
-        @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
-        .pop{animation:pop 0.55s cubic-bezier(.34,1.56,.64,1) forwards, stampImpression 0.7s ease-out}
-        .toast{animation:stampedToast 2.2s ease forwards}
-        .up{animation:up 0.22s ease-out}
-        .ghost{animation:pulse 1s ease-in-out infinite}
-        .shake{animation:shake 0.3s}
-        .fade-in{animation:fadeIn 0.4s ease-out}
-        @keyframes fadeIn{from{opacity:0;transform:translate(-50%,-48%) rotate(-1.5deg)}to{opacity:1;transform:translate(-50%,-50%) rotate(-1.5deg)}}
-        .own-stamp:hover{outline:1.5px dashed #8b3a2f;outline-offset:3px;border-radius:2px}
-        .btn-hover:hover{transform:translate(-1px,-1px);box-shadow:4px 4px 0 #1a1614 !important}
-        .btn-back:hover{background:#faf5e8 !important}
-        ::-webkit-scrollbar{width:4px;height:4px}
-        ::-webkit-scrollbar-thumb{background:#d4c5a8;border-radius:2px}
-        ::-webkit-scrollbar-track{background:transparent}
-        
-        /* Mobile responsive fixes */
-        @media (max-width: 768px) {
-          .composer-modal {
-            max-height: 80dvh !important;
-            padding: 12px 14px calc(env(safe-area-inset-bottom, 0px) + 16px) !important;
-          }
-          .avatar-grid, .hair-grid {
-            grid-template-columns: repeat(2, 1fr) !important;
-            max-height: 280px !important;
-          }
-          .preset-grid {
-            grid-template-columns: repeat(2, 1fr) !important;
-            max-height: 240px !important;
-          }
-          .avatar-grid pre, .hair-grid pre {
-            font-size: 8.5px !important;
-            height: 110px !important;
-          }
-          .preset-grid pre {
-            font-size: 8px !important;
-            height: 80px !important;
-          }
-          .avatar-grid > button > div, .hair-grid > button > div, .preset-grid > button > div {
-            font-size: 10px !important;
-          }
-          .workspace-textarea {
-            height: 170px !important;
-          }
-          .hint-text {
-            white-space: normal !important;
-            max-width: 80vw !important;
-          }
-        }
-        
-        /* Smaller phones */
-        @media (max-width: 380px) {
-          .composer-modal {
-            max-height: 78dvh !important;
-          }
-          .avatar-grid, .hair-grid {
-            max-height: 240px !important;
-          }
-        }
-      `}</style>
+  @keyframes pop{
+    0%{transform:scale(0.4) rotate(-8deg);opacity:0}
+    40%{transform:scale(1.15) rotate(3deg);opacity:1}
+    70%{transform:scale(0.95) rotate(-1deg)}
+    100%{transform:scale(1) rotate(0);opacity:1}
+  }
+  @keyframes stampImpression{
+    0%{outline:3px solid #8b3a2f;outline-offset:0;opacity:1}
+    100%{outline:3px solid #8b3a2f;outline-offset:20px;opacity:0}
+  }
+  @keyframes stampedToast{
+    0%{transform:translate(-50%,-20px);opacity:0}
+    15%,80%{transform:translate(-50%,0);opacity:1}
+    100%{transform:translate(-50%,-10px);opacity:0}
+  }
+  @keyframes up{from{transform:translateY(24px);opacity:0}to{transform:translateY(0);opacity:1}}
+  @keyframes fd{0%,70%{opacity:1}100%{opacity:0}}
+  @keyframes pulse{0%,100%{opacity:0.35}50%{opacity:0.75}}
+  @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+  @keyframes fadeIn{from{opacity:0;transform:translate(-50%,-48%) rotate(-1.5deg)}to{opacity:1;transform:translate(-50%,-50%) rotate(-1.5deg)}}
+
+  .pop{animation:pop 0.55s cubic-bezier(.34,1.56,.64,1) forwards, stampImpression 0.7s ease-out}
+  .toast{animation:stampedToast 2.2s ease forwards}
+  .up{animation:up 0.25s cubic-bezier(.25,.46,.45,.94)}
+  .ghost{animation:pulse 1s ease-in-out infinite}
+  .shake{animation:shake 0.3s}
+  .fade-in{animation:fadeIn 0.4s ease-out}
+
+  /* Stamp hover */
+  .own-stamp{transition:opacity 0.15s ease}
+  .own-stamp:hover{outline:1.5px dashed #8b3a2f;outline-offset:3px;border-radius:2px;opacity:0.88}
+
+  /* Button interactions — press into paper feel */
+  .btn-hover{transition:transform 0.12s ease, box-shadow 0.12s ease !important}
+  .btn-hover:hover{transform:translate(-1px,-1px) !important;box-shadow:4px 4px 0 #1a1614 !important}
+  .btn-hover:active{transform:translate(2px,2px) !important;box-shadow:1px 1px 0 #1a1614 !important}
+
+  /* Back button */
+  .btn-back{transition:background 0.15s ease, transform 0.12s ease, box-shadow 0.12s ease !important}
+  .btn-back:hover{background:#faf5e8 !important;transform:translate(-1px,-1px) !important;box-shadow:3px 3px 0 #1a1614 !important}
+  .btn-back:active{transform:translate(2px,2px) !important;box-shadow:1px 1px 0 #1a1614 !important}
+
+  /* Custom tooltip — immediate, no delay */
+  [data-tooltip]{position:relative}
+  [data-tooltip]::after{
+    content:attr(data-tooltip);
+    position:absolute;
+    bottom:calc(100% + 8px);
+    right:0;
+    background:#1a1614;
+    color:#fefcf7;
+    padding:4px 8px;
+    border-radius:3px;
+    font-size:10px;
+    font-family:'Courier New',monospace;
+    letter-spacing:0.5px;
+    white-space:nowrap;
+    opacity:0;
+    transform:translateY(4px);
+    transition:opacity 0.15s ease, transform 0.15s ease;
+    pointer-events:none;
+    box-shadow:2px 2px 0 rgba(26,22,20,0.3);
+  }
+  [data-tooltip]:hover::after{opacity:1;transform:translateY(0)}
+
+  /* Grid item hover */
+  .avatar-grid button, .hair-grid button, .preset-grid button{
+    transition:transform 0.15s ease, border-color 0.15s ease, background 0.15s ease !important
+  }
+  .avatar-grid button:hover, .hair-grid button:hover, .preset-grid button:hover{
+    transform:scale(1.04) !important
+  }
+
+  /* Tab transitions */
+  .tab-btn{transition:background 0.15s ease, color 0.15s ease}
+
+  /* Input focus */
+  textarea:focus, input[type="text"]:focus, input[type="password"]:focus{
+    border-color:#8b3a2f !important;
+    box-shadow:2px 2px 0 #8b3a2f !important;
+    transition:border-color 0.15s, box-shadow 0.15s;
+    outline:none;
+  }
+
+  /* Close button spin */
+  .close-btn{transition:transform 0.2s ease, color 0.15s ease}
+  .close-btn:hover{transform:rotate(90deg);color:#8b3a2f !important}
+
+  /* Color picker dots */
+  .color-dot{transition:transform 0.15s ease, box-shadow 0.15s ease !important}
+  .color-dot:hover{transform:scale(1.25) !important}
+
+  /* Scrollbar */
+  ::-webkit-scrollbar{width:4px;height:4px}
+  ::-webkit-scrollbar-thumb{background:#d4c5a8;border-radius:2px}
+  ::-webkit-scrollbar-track{background:transparent}
+
+  /* Mobile */
+  @media (max-width: 768px) {
+    .composer-modal{max-height:80dvh !important;padding:12px 14px calc(env(safe-area-inset-bottom, 0px) + 16px) !important}
+    .avatar-grid,.hair-grid{grid-template-columns:repeat(2,1fr) !important;max-height:280px !important}
+    .preset-grid{grid-template-columns:repeat(2,1fr) !important;max-height:240px !important}
+    .avatar-grid pre,.hair-grid pre{font-size:8.5px !important;height:110px !important}
+    .preset-grid pre{font-size:8px !important;height:80px !important}
+    .workspace-textarea{height:170px !important}
+    .hint-text{white-space:normal !important;max-width:80vw !important}
+  }
+  @media (max-width: 380px) {
+    .composer-modal{max-height:78dvh !important}
+    .avatar-grid,.hair-grid{max-height:240px !important}
+  }
+`}</style>
 
       {/* Welcome sticky note - first visit only */}
       {showWelcome&&loaded&&(
@@ -741,9 +776,8 @@ const postBase = { margin:0, padding:0, whiteSpace:"pre", fontFamily:"'Courier N
             {l:"⌂",f:()=>{setPan({x:window.innerWidth/2, y:window.innerHeight/2});setScl(1);}}
           ].map(b=>(
             <button key={b.l} onClick={b.f}
-  title={b.l==="✦"?"find my mark":b.l==="⌂"?"home":b.l==="+"?"zoom in":"zoom out"}
-  className="btn-hover zoom-btn"
-  style={{width:32,height:32,borderRadius:4,border:"1.5px solid #1a1614",background:"#fefcf7",cursor:"pointer",fontSize:b.l==="⌂"?12:16,color:"#1a1614",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"2px 2px 0 #1a1614",fontFamily:"'Courier New',monospace",transition:"all 0.15s"}}>{b.l}</button>
+  data-tooltip={b.l==="✦"?"find my mark":b.l==="⌂"?"home":b.l==="+"?"zoom in":"zoom out"}
+  className="btn-hover"
           ))}
         </div>
       )}
@@ -773,11 +807,10 @@ const postBase = { margin:0, padding:0, whiteSpace:"pre", fontFamily:"'Courier N
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
             <div style={{display:"flex",border:"1.5px solid #1a1614",borderRadius:3,overflow:"hidden"}}>
               {[["avatar","avatar"],["preset","preset"],["text","text"]].map(([t,lbl])=>(
-                <button key={t} onClick={()=>{setTab(t); if(t!=="text") setEditingId(null);}} style={{padding:"6px 14px",border:"none",background:tab===t?"#1a1614":"transparent",color:tab===t?"#fefcf7":"#1a1614",fontFamily:"'Courier New',monospace",fontSize:11,cursor:"pointer",fontWeight:tab===t?"bold":"normal",letterSpacing:0.5}}>{lbl}</button>
+                <button key={t} onClick={()=>{setTab(t); if(t!=="text") setEditingId(null);}} style={{padding:"6px 14px",border:"none",background:tab===t?"#1a1614":"transparent",color:tab===t?"#fefcf7":"#1a1614",fontFamily:"'Courier New',monospace",fontSize:11,cursor:"pointer",fontWeight:tab===t?"bold":"normal",letterSpacing:0.5,transition:"background 0.15s ease, color 0.15s ease"}}>{lbl}</button><button key={t} onClick={()=>{setTab(t); if(t!=="text") setEditingId(null);}} style={{padding:"6px 14px",border:"none",background:tab===t?"#1a1614":"transparent",color:tab===t?"#fefcf7":"#1a1614",fontFamily:"'Courier New',monospace",fontSize:11,cursor:"pointer",fontWeight:tab===t?"bold":"normal",letterSpacing:0.5,transition:"background 0.15s ease, color 0.15s ease"}}>{lbl}</button>
               ))}
             </div>
-            <button onClick={()=>{setOpen(false); setEditingId(null);}} style={{background:"none",border:"none",cursor:"pointer",color:"#1a1614",fontSize:14,padding:0,lineHeight:1}}>✕</button>
-          </div>
+<button onClick={()=>{setOpen(false); setEditingId(null);}} className="close-btn" style={{background:"none",border:"none",cursor:"pointer",color:"#1a1614",fontSize:14,padding:0,lineHeight:1}}>✕</button>          </div>
 
           {/* SCROLLABLE CONTENT */}
           <div style={{flex:1,overflowY:"auto",minHeight:0,marginRight:-4,paddingRight:4}}>
@@ -909,7 +942,7 @@ const postBase = { margin:0, padding:0, whiteSpace:"pre", fontFamily:"'Courier N
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:14,paddingTop:10,borderTop:"1.5px solid #d4c5a8",flexShrink:0}}>
             <div style={{display:"flex",gap:6,alignItems:"center"}}>
               {COLS.map(c=>(
-                <button key={c} onClick={()=>setCol(c)} style={{width:20,height:20,borderRadius:"50%",background:c,cursor:"pointer",border:col===c?"2px solid #1a1614":"1.5px solid #d4c5a8",transition:"all 0.15s",padding:0}}/>
+  <button key={c} onClick={()=>setCol(c)} className="color-dot" style={{width:20,height:20,borderRadius:"50%",background:c,cursor:"pointer",border:col===c?"2px solid #1a1614":"1.5px solid #d4c5a8",padding:0}}/>
               ))}
             </div>
             <button onClick={stampOrUpdate} disabled={!canStamp}
