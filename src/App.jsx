@@ -116,12 +116,12 @@ export default function App() {
   // Triple-tap tracking for admin trigger
   const tapTimerRef = useRef(null);
   const tapCountRef = useRef(0);
-
-  // Welcome card state - shown only on first visit
+// Welcome card state - two-step onboarding, shown only on first visit
   const [showWelcome, setShowWelcome] = useState(() => {
     return !localStorage.getItem('creative-canvas-welcomed');
   });
-
+  const [welcomeStep, setWelcomeStep] = useState(1);
+const [showAbout, setShowAbout] = useState(false);
   function dismissWelcome() {
     localStorage.setItem('creative-canvas-welcomed', 'true');
     setShowWelcome(false);
@@ -630,26 +630,85 @@ export default function App() {
       {/* Welcome sticky note - first visit only */}
       {showWelcome&&loaded&&(
         <div style={{position:"absolute",inset:0,background:"rgba(244,237,224,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:50,padding:20,backdropFilter:"blur(2px)"}}>
-          <div className="fade-in" style={{background:"#fefcf7",padding:"40px 36px 32px",maxWidth:340,width:"100%",border:"1.5px solid #1a1614",boxShadow:"6px 6px 0 #1a1614",transform:"rotate(-1.5deg)",fontFamily:"'Courier New',monospace",position:"relative"}}>
+          {welcomeStep===1 ? (
+            <div className="fade-in" style={{background:"#fefcf7",padding:"40px 36px 32px",maxWidth:360,width:"100%",border:"1.5px solid #1a1614",boxShadow:"6px 6px 0 #1a1614",transform:"rotate(-1.5deg)",fontFamily:"'Courier New',monospace",position:"relative"}}>
+              <div style={{fontSize:14,color:"#1a1614",marginBottom:16,letterSpacing:0.5,lineHeight:1.4,fontWeight:"bold"}}>
+                welcome to creative canvas.
+              </div>
+              <div style={{fontSize:13,color:"#1a1614",lineHeight:1.7,marginBottom:24}}>
+                an infinite paper canvas. drift around, find a corner that feels yours, leave a mark.
+                <br/><br/>
+                <span style={{fontStyle:"italic"}}>inspired by the early web — when ASCII art was how people said "i was here."</span>
+              </div>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
+                <div style={{display:"flex",gap:5}}>
+                  <span style={{width:6,height:6,borderRadius:"50%",background:"#1a1614"}}/>
+                  <span style={{width:6,height:6,borderRadius:"50%",background:"#d4c5a8"}}/>
+                </div>
+                <button onClick={()=>setWelcomeStep(2)}
+                  className="btn-hover"
+                  style={{padding:"8px 18px",borderRadius:3,border:"1.5px solid #1a1614",background:"#8b3a2f",color:"#fefcf7",fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:12,cursor:"pointer",letterSpacing:1,boxShadow:"3px 3px 0 #1a1614"}}>
+                  continue →
+                </button>
+              </div>
+              <div style={{position:"absolute",bottom:-22,right:-4,fontSize:9,color:"#a8967a",fontStyle:"italic",letterSpacing:0.3}}>
+                — kept by zee
+              </div>
+            </div>
+          ) : (
+            <div className="fade-in" style={{background:"#fefcf7",padding:"40px 36px 32px",maxWidth:360,width:"100%",border:"1.5px solid #1a1614",boxShadow:"6px 6px 0 #1a1614",transform:"rotate(1.5deg)",fontFamily:"'Courier New',monospace",position:"relative"}}>
+              <div style={{fontSize:14,color:"#1a1614",marginBottom:16,letterSpacing:0.5,lineHeight:1.4,fontWeight:"bold"}}>
+                how it works.
+              </div>
+              <div style={{fontSize:13,color:"#1a1614",lineHeight:1.7,marginBottom:24}}>
+                drag to wander. pinch or scroll to zoom. build a character, pick a preset, or just write a few words.
+                <br/><br/>
+                <span style={{fontStyle:"italic"}}>whatever you leave stays here. forever.</span>
+              </div>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
+                <div style={{display:"flex",gap:5}}>
+                  <span style={{width:6,height:6,borderRadius:"50%",background:"#d4c5a8",cursor:"pointer"}} onClick={()=>setWelcomeStep(1)}/>
+                  <span style={{width:6,height:6,borderRadius:"50%",background:"#1a1614"}}/>
+                </div>
+                <button onClick={dismissWelcome}
+                  className="btn-hover"
+                  style={{padding:"8px 18px",borderRadius:3,border:"1.5px solid #1a1614",background:"#8b3a2f",color:"#fefcf7",fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:12,cursor:"pointer",letterSpacing:1,boxShadow:"3px 3px 0 #1a1614"}}>
+                  begin →
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+{/* About card - opens from top-right link */}
+      {showAbout&&(
+        <div style={{position:"absolute",inset:0,background:"rgba(244,237,224,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:50,padding:20,backdropFilter:"blur(2px)"}}
+          onClick={()=>setShowAbout(false)}>
+          <div className="fade-in" 
+            onClick={(e)=>e.stopPropagation()}
+            style={{background:"#fefcf7",padding:"40px 36px 32px",maxWidth:380,width:"100%",border:"1.5px solid #1a1614",boxShadow:"6px 6px 0 #1a1614",transform:"rotate(-1deg)",fontFamily:"'Courier New',monospace",position:"relative"}}>
+            <button onClick={()=>setShowAbout(false)} className="close-btn"
+              style={{position:"absolute",top:12,right:14,background:"none",border:"none",cursor:"pointer",color:"#1a1614",fontSize:14,padding:0,lineHeight:1}}>✕</button>
             <div style={{fontSize:14,color:"#1a1614",marginBottom:16,letterSpacing:0.5,lineHeight:1.4,fontWeight:"bold"}}>
-              welcome to creative canvas.
+              about creative canvas.
             </div>
-            <div style={{fontSize:13,color:"#1a1614",lineHeight:1.7,marginBottom:24,fontStyle:"italic"}}>
-              leave a mark — a note, a message, a doodle.<br/>
-              for the world. or just for me.
+            <div style={{fontSize:13,color:"#1a1614",lineHeight:1.7,marginBottom:20}}>
+              a small experiment in shared space — a paper canvas kept by everyone who passes through.
+              <br/><br/>
+              <span style={{fontStyle:"italic"}}>inspired by the ASCII bulletin boards of the early web, when leaving a mark was how people said hello.</span>
             </div>
-            <button onClick={dismissWelcome}
+            <div style={{fontSize:11,color:"#a8967a",lineHeight:1.6,marginBottom:20,paddingTop:14,borderTop:"1px dashed #d4c5a8"}}>
+              designed & built by zee, 2026.<br/>
+              react · supabase · a lot of revisions.
+            </div>
+            <a href="YOUR_PORTFOLIO_URL_HERE" target="_blank" rel="noopener noreferrer"
               className="btn-hover"
-              style={{padding:"8px 18px",borderRadius:3,border:"1.5px solid #1a1614",background:"#8b3a2f",color:"#fefcf7",fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:12,cursor:"pointer",letterSpacing:1,boxShadow:"3px 3px 0 #1a1614",transition:"all 0.15s"}}>
-              enter →
-            </button>
-            <div style={{position:"absolute",bottom:-22,right:-4,fontSize:9,color:"#a8967a",fontStyle:"italic",letterSpacing:0.3}}>
-              — kept by zee
-            </div>
+              style={{display:"inline-block",padding:"8px 18px",borderRadius:3,border:"1.5px solid #1a1614",background:"#fefcf7",color:"#1a1614",fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:12,textDecoration:"none",letterSpacing:1,boxShadow:"3px 3px 0 #1a1614"}}>
+              see more of my work →
+            </a>
           </div>
         </div>
       )}
-
       {/* CANVAS */}
       <div ref={cvsRef}
         style={{position:"absolute",inset:0,background:"#f4ede0",cursor:placing?"crosshair":isDragging?"grabbing":"grab",touchAction:"none"}}
@@ -686,7 +745,15 @@ export default function App() {
           <pre style={{margin:0,textAlign:"center",color:"#a8967a",fontSize:13,lineHeight:2.2}}>{`  +  +  +\n\nthe canvas is empty\n\nbe the first to leave a mark`}</pre>
         </div>
       )}
-
+{/* About link - top right */}
+      {!open&&!showWelcome&&(
+        <button onClick={()=>setShowAbout(true)}
+          style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 16px)",right:18,background:"none",border:"none",padding:0,cursor:"pointer",fontSize:11,color:"#1a1614",letterSpacing:0.5,fontFamily:"'Courier New',monospace",zIndex:5,opacity:0.7,transition:"opacity 0.15s ease"}}
+          onMouseEnter={(e)=>e.currentTarget.style.opacity="1"}
+          onMouseLeave={(e)=>e.currentTarget.style.opacity="0.7"}>
+          about ↗
+        </button>
+      )}
       {/* First-visit hint */}
       {hint&&!placing&&loaded&&!showWelcome&&(
         <div className="hint-text" style={{position:"absolute",bottom:"calc(env(safe-area-inset-bottom, 0px) + 160px)",left:"50%",transform:"translateX(-50%)",fontSize:10,color:"#a8967a",animation:"fd 5s ease forwards",pointerEvents:"none",textAlign:"center",maxWidth:"90vw",lineHeight:1.5}}>
