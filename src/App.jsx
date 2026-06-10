@@ -44,7 +44,7 @@ const PRESETS = [
 ];
 
 const ORNS = ["✿","❀","✾","❃","❁","✦","✧","★","☆","♡","♥","·","˚","°","⊹","≋","∿","~"];
-const COLS = ["#9B6BC4","#C87090","#4A9E8A","#C07040","#5A88C0","#7A6050","#6A9E50","#B05898"];
+const COLS = ["#55FF55","#55FFFF","#FFFF55","#FF5555","#FF55FF","#5577FF","#FFFFFF","#FFAA00"];
 const PASSWORD = "zee786";
 
 function combineHF(hair, face, textBelow) {
@@ -127,9 +127,29 @@ const [showAbout, setShowAbout] = useState(false);
     setShowWelcome(false);
   }
 
+  // Boot sequence state
+  const [bootLines, setBootLines] = useState([]);
+  const [bootDone, setBootDone] = useState(false);
+  const [bootGone, setBootGone] = useState(false);
+
+  useEffect(() => {
+    const seq = [
+      { text: "COLLECTIVE CANVAS BBS", delay: 120 },
+      { text: "> connecting to server...", delay: 620 },
+      { text: "> loading canvas data...", delay: 1120 },
+      { text: "> ready.", delay: 1720 },
+    ];
+    const timers = seq.map(({ text, delay }) =>
+      setTimeout(() => setBootLines(l => [...l, text]), delay)
+    );
+    const fadeTimer  = setTimeout(() => setBootDone(true), 2300);
+    const goneTimer  = setTimeout(() => setBootGone(true), 2800);
+    return () => [...timers, fadeTimer, goneTimer].forEach(clearTimeout);
+  }, []);
+
   useEffect(()=>{ panR.current = pan; }, [pan]);
   useEffect(()=>{ sclR.current = scl; }, [scl]);
-  useEffect(()=>{ const t=setTimeout(()=>setHint(false),5000); return ()=>clearTimeout(t); },[]);
+  useEffect(()=>{ if(!bootGone) return; const t=setTimeout(()=>setHint(false),5000); return ()=>clearTimeout(t); },[bootGone]);
 
   async function load() {
     try {
@@ -137,7 +157,7 @@ const [showAbout, setShowAbout] = useState(false);
         .from('stamps')
         .select('*')
         .order('created_at', { ascending: true });
-      
+
       if (error) throw error;
       if (data) {
         setPosts(data);
@@ -194,11 +214,11 @@ const [showAbout, setShowAbout] = useState(false);
   }
 
   // Simplified drag handlers
-  function onCvsMD(e){ 
+  function onCvsMD(e){
     if(placing||e.button!==0||open||stampMenu||draggingStamp) return;
-    cvDrag.current=true; 
-    setIsDragging(true); 
-    lm.current={x:e.clientX,y:e.clientY}; 
+    cvDrag.current=true;
+    setIsDragging(true);
+    lm.current={x:e.clientX,y:e.clientY};
   }
 
   function onCvsMM(e){
@@ -207,14 +227,14 @@ const [showAbout, setShowAbout] = useState(false);
       onStampDragMove(e);
       return;
     }
-    
+
     // Handle placing ghost
-    if(placing){ 
+    if(placing){
       const rect=cvsRef.current.getBoundingClientRect();
-      setGhost({x:e.clientX-rect.left,y:e.clientY-rect.top}); 
-      return; 
+      setGhost({x:e.clientX-rect.left,y:e.clientY-rect.top});
+      return;
     }
-    
+
     // Handle canvas panning
     if(!cvDrag.current) return;
     const dx = e.clientX - lm.current.x;
@@ -223,21 +243,21 @@ const [showAbout, setShowAbout] = useState(false);
     lm.current={x:e.clientX, y:e.clientY};
   }
 
-  function onCvsMU(){ 
+  function onCvsMU(){
     // Handle stamp drag end
     if(draggingStamp) {
       onStampDragEnd();
       return;
     }
-    
+
     // Handle canvas pan end
-    cvDrag.current=false; 
-    setIsDragging(false); 
+    cvDrag.current=false;
+    setIsDragging(false);
   }
 
   const pinchDist = useRef(null);
 
-  function onTS(e){ 
+  function onTS(e){
     if(e.touches.length===2) {
       const dx = e.touches[0].clientX - e.touches[1].clientX;
       const dy = e.touches[0].clientY - e.touches[1].clientY;
@@ -286,9 +306,9 @@ const [showAbout, setShowAbout] = useState(false);
     if(!draggingStamp) return;
     const dx = (e.clientX - stampDragStart.current.x) / sclR.current;
     const dy = (e.clientY - stampDragStart.current.y) / sclR.current;
-    
-    setPosts(posts.map(p => 
-      p.id === draggingStamp 
+
+    setPosts(posts.map(p =>
+      p.id === draggingStamp
         ? {...p, x: stampDragStart.current.stampX + dx, y: stampDragStart.current.stampY + dy}
         : p
     ));
@@ -336,7 +356,7 @@ const [showAbout, setShowAbout] = useState(false);
     const candidate = { x: targetX, y: targetY, content };
     let collision = existingPosts.some(p => stampsOverlap(candidate, p));
     if (!collision) return { x: targetX, y: targetY };
-    
+
     // Spiral search: try increasing radii at 8 angles
     for (let radius = 30; radius <= 400; radius += 30) {
       for (let angle = 0; angle < 360; angle += 45) {
@@ -351,9 +371,30 @@ const [showAbout, setShowAbout] = useState(false);
     return { x: targetX, y: targetY }; // fallback
   }
 
+  function playClick() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const buf = ctx.createBuffer(1, ctx.sampleRate * 0.04, ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < data.length; i++) {
+        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 2);
+      }
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.4, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.04);
+      src.connect(gain);
+      gain.connect(ctx.destination);
+      src.start();
+      src.onended = () => ctx.close();
+    } catch(e) {}
+  }
+
   async function placeOnCanvas(e) {
     if(stampMenu){ setStampMenu(null); return; }
     if(!placing||!pending) return;
+    playClick();
     const rect=cvsRef.current.getBoundingClientRect();
     const rawX=(e.clientX-rect.left-panR.current.x)/sclR.current;
     const rawY=(e.clientY-rect.top-panR.current.y)/sclR.current;
@@ -361,7 +402,7 @@ const [showAbout, setShowAbout] = useState(false);
     const { x, y } = findValidPosition(rawX, rawY, pending.content, posts);
     const np={...pending,x,y};
     setPlacing(false); setPending(null);
-    
+
     try {
       const { data, error } = await supabase
         .from('stamps')
@@ -375,15 +416,15 @@ const [showAbout, setShowAbout] = useState(false);
           session_id: np.sessionId
         }])
         .select();
-      
+
       if (error) throw error;
       await load(); // Reload to get the new stamp
-      setPopped(np.id); 
+      setPopped(np.id);
       setTimeout(()=>setPopped(null),700);
       setToast("✓ stamped");
       setTimeout(()=>setToast(null), 2200);
-    } catch(err){ 
-      console.error('Error placing stamp:', err); 
+    } catch(err){
+      console.error('Error placing stamp:', err);
     }
   }
 
@@ -400,16 +441,16 @@ const [showAbout, setShowAbout] = useState(false);
   function handleCounterTap() {
     tapCountRef.current++;
     if(tapCountRef.current === 3) {
-      if(admin) { 
-        setAdmin(false); 
-      } else { 
-        setPwPrompt(true); 
-        setPwInput(""); 
-        setPwErr(false); 
+      if(admin) {
+        setAdmin(false);
+      } else {
+        setPwPrompt(true);
+        setPwInput("");
+        setPwErr(false);
       }
       tapCountRef.current = 0;
     }
-    
+
     if(tapTimerRef.current) clearTimeout(tapTimerRef.current);
     tapTimerRef.current = setTimeout(() => {
       tapCountRef.current = 0;
@@ -435,14 +476,14 @@ const [showAbout, setShowAbout] = useState(false);
           .from('stamps')
           .update({ content, color: col })
           .eq('id', editingId);
-        
+
         if (error) throw error;
         await load();
         setEditingId(null);
         setOpen(false);
         resetComposer();
-      } catch(err){ 
-        console.error('Error updating stamp:', err); 
+      } catch(err){
+        console.error('Error updating stamp:', err);
       }
     } else {
       setPending({ id:`${Date.now()}-${Math.random().toString(36).slice(2,6)}`, content, color:col, ts:Date.now(), sessionId });
@@ -474,12 +515,12 @@ const [showAbout, setShowAbout] = useState(false);
         .from('stamps')
         .delete()
         .eq('id', stampMenu.stamp.id);
-      
+
       if (error) throw error;
       await load();
       setStampMenu(null);
-    } catch(err){ 
-      console.error('Error deleting stamp:', err); 
+    } catch(err){
+      console.error('Error deleting stamp:', err);
     }
   }
 
@@ -515,8 +556,19 @@ const [showAbout, setShowAbout] = useState(false);
   const canStamp = getCurrentContent().trim().length > 0;
   const isEditing = !!editingId;
 
+  // Visitor rank: sort unique session IDs by first stamp date
+  const sessionFirstSeen = {};
+  posts.forEach(p => {
+    const t = new Date(p.created_at).getTime();
+    if (!sessionFirstSeen[p.session_id] || t < sessionFirstSeen[p.session_id]) {
+      sessionFirstSeen[p.session_id] = t;
+    }
+  });
+  const sortedSessions = Object.keys(sessionFirstSeen).sort((a,b) => sessionFirstSeen[a] - sessionFirstSeen[b]);
+  const visitorNumber = sortedSessions.indexOf(sessionId) + 1;
+
   // shared post styling
-  const postBase = { margin:0, padding:0, whiteSpace:"pre", fontFamily:"'Courier New',monospace", fontSize:15, lineHeight:1.4, fontWeight:"bold", textShadow:"0 0 0.3px currentColor", userSelect:"none", transformOrigin:"top left" };
+  const postBase = { margin:0, padding:0, whiteSpace:"pre", fontFamily:"'Courier New',monospace", fontSize:15, lineHeight:1.4, fontWeight:"bold", textShadow:"0 0 2px currentColor", userSelect:"none", transformOrigin:"top left" };
 
   // Button hover styles
   const btnHoverStyle = {
@@ -524,7 +576,22 @@ const [showAbout, setShowAbout] = useState(false);
   };
 
   return (
-    <div style={{width:"100vw",height:"100dvh",position:"relative",overflow:"hidden",fontFamily:"'Courier New',monospace"}}>
+    <div style={{width:"100vw",height:"100dvh",position:"relative",overflow:"hidden",background:"#0D0D2B",fontFamily:"'Courier New',monospace"}}>
+
+      {/* Boot sequence overlay */}
+      {!bootGone&&(
+        <div style={{position:"fixed",inset:0,background:"#000000",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Courier New',monospace",transition:"opacity 0.5s ease",opacity:bootDone?0:1,pointerEvents:bootDone?"none":"auto"}}>
+          <div style={{padding:32,maxWidth:420,width:"100%"}}>
+            {bootLines.map((line,i)=>(
+              <div key={i} style={{color:i===0?"#FFFF55":"#D8D8E0",fontSize:i===0?15:12,lineHeight:i===0?1:1.9,marginBottom:i===0?20:0,letterSpacing:i===0?3:0.5,fontWeight:i===0?"bold":"normal"}}>
+                {line}
+              </div>
+            ))}
+            {!bootDone&&<span className="blink" style={{color:"#00CCFF",fontSize:12}}>█</span>}
+          </div>
+        </div>
+      )}
+
       <style>{`
         @keyframes pop{
           0%{transform:scale(0.4) rotate(-8deg);opacity:0}
@@ -533,8 +600,8 @@ const [showAbout, setShowAbout] = useState(false);
           100%{transform:scale(1) rotate(0);opacity:1}
         }
         @keyframes stampImpression{
-          0%{outline:3px solid #8b3a2f;outline-offset:0;opacity:1}
-          100%{outline:3px solid #8b3a2f;outline-offset:20px;opacity:0}
+          0%{outline:3px solid #00CCFF;outline-offset:0;opacity:1}
+          100%{outline:3px solid #00CCFF;outline-offset:20px;opacity:0}
         }
         @keyframes stampedToast{
           0%{transform:translate(-50%,-20px);opacity:0}
@@ -545,7 +612,9 @@ const [showAbout, setShowAbout] = useState(false);
         @keyframes fd{0%,70%{opacity:1}100%{opacity:0}}
         @keyframes pulse{0%,100%{opacity:0.35}50%{opacity:0.75}}
         @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
-        @keyframes fadeIn{from{opacity:0;transform:translate(-50%,-48%) rotate(-1.5deg)}to{opacity:1;transform:translate(-50%,-50%) rotate(-1.5deg)}}
+        @keyframes fadeIn{from{opacity:0;transform:scale(0.97)}to{opacity:1;transform:scale(1)}}
+        @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+        .blink{animation:blink 1s step-end infinite}
 
         .pop{animation:pop 0.55s cubic-bezier(.34,1.56,.64,1) forwards,stampImpression 0.7s ease-out}
         .toast{animation:stampedToast 2.2s ease forwards}
@@ -555,18 +624,18 @@ const [showAbout, setShowAbout] = useState(false);
         .fade-in{animation:fadeIn 0.4s ease-out}
 
         .own-stamp{transition:opacity 0.15s ease}
-        .own-stamp:hover{outline:1.5px dashed #8b3a2f;outline-offset:3px;border-radius:2px;opacity:0.85}
+        .own-stamp:hover{outline:1px dashed #00CCFF;outline-offset:3px;opacity:0.85}
 
         .btn-hover{transition:transform 0.12s ease,box-shadow 0.12s ease !important}
-        .btn-hover:hover{transform:translate(-1px,-1px) !important;box-shadow:4px 4px 0 #1a1614 !important}
-        .btn-hover:active{transform:translate(2px,2px) !important;box-shadow:1px 1px 0 #1a1614 !important}
+        .btn-hover:hover{transform:translate(-1px,-1px) !important;box-shadow:0 0 8px rgba(0,204,255,0.35) !important}
+        .btn-hover:active{transform:translate(1px,1px) !important;box-shadow:none !important}
 
         .btn-back{transition:background 0.15s ease,transform 0.12s ease,box-shadow 0.12s ease !important}
-        .btn-back:hover{background:#faf5e8 !important;transform:translate(-1px,-1px) !important;box-shadow:3px 3px 0 #1a1614 !important}
-        .btn-back:active{transform:translate(2px,2px) !important;box-shadow:1px 1px 0 #1a1614 !important}
+        .btn-back:hover{background:#12122A !important;transform:translate(-1px,-1px) !important;box-shadow:0 0 8px rgba(0,204,255,0.2) !important}
+        .btn-back:active{transform:translate(1px,1px) !important;box-shadow:none !important}
 
         .close-btn{transition:transform 0.2s ease,color 0.15s ease}
-        .close-btn:hover{transform:rotate(90deg);color:#8b3a2f !important}
+        .close-btn:hover{transform:rotate(90deg);color:#FF5555 !important}
 
         .color-dot{transition:transform 0.15s ease !important}
         .color-dot:hover{transform:scale(1.25) !important}
@@ -577,10 +646,10 @@ const [showAbout, setShowAbout] = useState(false);
           position:absolute;
           bottom:calc(100% + 8px);
           right:0;
-          background:#1a1614;
-          color:#fefcf7;
+          background:#12122A;
+          color:#D8D8E0;
           padding:4px 8px;
-          border-radius:3px;
+          border:1px solid #222240;
           font-size:10px;
           font-family:'Courier New',monospace;
           letter-spacing:0.5px;
@@ -589,7 +658,6 @@ const [showAbout, setShowAbout] = useState(false);
           transform:translateY(4px);
           transition:opacity 0.15s ease,transform 0.15s ease;
           pointer-events:none;
-          box-shadow:2px 2px 0 rgba(26,22,20,0.3);
         }
         [data-tooltip]:hover::after{opacity:1;transform:translateY(0)}
 
@@ -600,18 +668,22 @@ const [showAbout, setShowAbout] = useState(false);
           transform:scale(1.04) !important
         }
 
+        textarea::placeholder,input::placeholder{
+          color:#55556A !important;
+          opacity:1;
+        }
         textarea:focus,input[type="password"]:focus{
-          border-color:#8b3a2f !important;
-          box-shadow:2px 2px 0 rgba(139,58,47,0.3) !important;
+          border-color:#00AACC !important;
+          box-shadow:0 0 8px rgba(0,170,204,0.2) !important;
           outline:none;
         }
 
         ::-webkit-scrollbar{width:4px;height:4px}
-        ::-webkit-scrollbar-thumb{background:#d4c5a8;border-radius:2px}
+        ::-webkit-scrollbar-thumb{background:#333355;border-radius:2px}
         ::-webkit-scrollbar-track{background:transparent}
 
         @media (max-width:768px){
-          .composer-modal{max-height:80dvh !important;padding:12px 14px calc(env(safe-area-inset-bottom,0px) + 16px) !important}
+          .composer-modal{max-height:80dvh !important;padding:0 14px calc(env(safe-area-inset-bottom,0px) + 16px) !important}
           .avatar-grid,.hair-grid{grid-template-columns:repeat(2,1fr) !important;max-height:280px !important}
           .preset-grid{grid-template-columns:repeat(2,1fr) !important;max-height:240px !important}
           .avatar-grid pre,.hair-grid pre{font-size:8.5px !important;height:110px !important}
@@ -628,51 +700,51 @@ const [showAbout, setShowAbout] = useState(false);
       `}</style>
 
       {/* Welcome sticky note - first visit only */}
-      {showWelcome&&loaded&&(
-        <div style={{position:"absolute",inset:0,background:"rgba(244,237,224,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:50,padding:20,backdropFilter:"blur(2px)"}}>
+      {showWelcome&&loaded&&bootGone&&(
+        <div style={{position:"absolute",inset:0,background:"rgba(0,0,0,0.88)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:50,padding:20,backdropFilter:"blur(2px)"}}>
           {welcomeStep===1 ? (
-            <div className="fade-in" style={{background:"#fefcf7",padding:"40px 36px 32px",maxWidth:360,width:"100%",border:"1.5px solid #1a1614",boxShadow:"6px 6px 0 #1a1614",transform:"rotate(-1.5deg)",fontFamily:"'Courier New',monospace",position:"relative"}}>
-              <div style={{fontSize:14,color:"#1a1614",marginBottom:16,letterSpacing:0.5,lineHeight:1.4,fontWeight:"bold"}}>
+            <div className="fade-in" style={{background:"#0F0F1E",padding:"40px 36px 32px",maxWidth:360,width:"100%",border:"2px solid #00CCFF",boxShadow:"0 0 24px rgba(0,204,255,0.15)",fontFamily:"'Courier New',monospace",position:"relative"}}>
+              <div style={{fontSize:14,color:"#FFFF55",marginBottom:16,letterSpacing:0.5,lineHeight:1.4,fontWeight:"bold"}}>
                 welcome to creative canvas.
               </div>
-              <div style={{fontSize:13,color:"#1a1614",lineHeight:1.7,marginBottom:24}}>
-                an infinite paper canvas. drift around, find a corner that feels yours, leave a mark.
+              <div style={{fontSize:13,color:"#D8D8E0",lineHeight:1.7,marginBottom:24}}>
+                an infinite canvas. drift around, find a corner that feels yours, leave a mark.
                 <br/><br/>
-                <span style={{fontStyle:"italic"}}>inspired by the early web — when ASCII art was how people said "i was here."</span>
+                inspired by the early web — when ASCII art was how people said "i was here."
               </div>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
                 <div style={{display:"flex",gap:5}}>
-                  <span style={{width:6,height:6,borderRadius:"50%",background:"#1a1614"}}/>
-                  <span style={{width:6,height:6,borderRadius:"50%",background:"#d4c5a8"}}/>
+                  <span style={{width:6,height:6,background:"#00CCFF",display:"inline-block"}}/>
+                  <span style={{width:6,height:6,background:"#222240",border:"1px solid #333355",display:"inline-block"}}/>
                 </div>
                 <button onClick={()=>setWelcomeStep(2)}
                   className="btn-hover"
-                  style={{padding:"8px 18px",borderRadius:3,border:"1.5px solid #1a1614",background:"#8b3a2f",color:"#fefcf7",fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:12,cursor:"pointer",letterSpacing:1,boxShadow:"3px 3px 0 #1a1614"}}>
+                  style={{padding:"8px 18px",borderRadius:0,border:"1px solid #00CCFF",background:"#00AACC",color:"#000000",fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:12,cursor:"pointer",letterSpacing:1}}>
                   continue →
                 </button>
               </div>
-              <div style={{position:"absolute",bottom:-22,right:-4,fontSize:9,color:"#a8967a",fontStyle:"italic",letterSpacing:0.3}}>
+              <div style={{position:"absolute",bottom:-22,right:-4,fontSize:9,color:"#55556A",letterSpacing:0.3}}>
                 — kept by zee
               </div>
             </div>
           ) : (
-            <div className="fade-in" style={{background:"#fefcf7",padding:"40px 36px 32px",maxWidth:360,width:"100%",border:"1.5px solid #1a1614",boxShadow:"6px 6px 0 #1a1614",transform:"rotate(1.5deg)",fontFamily:"'Courier New',monospace",position:"relative"}}>
-              <div style={{fontSize:14,color:"#1a1614",marginBottom:16,letterSpacing:0.5,lineHeight:1.4,fontWeight:"bold"}}>
+            <div className="fade-in" style={{background:"#0F0F1E",padding:"40px 36px 32px",maxWidth:360,width:"100%",border:"2px solid #00CCFF",boxShadow:"0 0 24px rgba(0,204,255,0.15)",fontFamily:"'Courier New',monospace",position:"relative"}}>
+              <div style={{fontSize:14,color:"#FFFF55",marginBottom:16,letterSpacing:0.5,lineHeight:1.4,fontWeight:"bold"}}>
                 how it works.
               </div>
-              <div style={{fontSize:13,color:"#1a1614",lineHeight:1.7,marginBottom:24}}>
+              <div style={{fontSize:13,color:"#D8D8E0",lineHeight:1.7,marginBottom:24}}>
                 drag to wander. pinch or scroll to zoom. build a character, pick a preset, or just write a few words.
                 <br/><br/>
-                <span style={{fontStyle:"italic"}}>whatever you leave stays here. forever.</span>
+                whatever you leave stays here. forever.
               </div>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
                 <div style={{display:"flex",gap:5}}>
-                  <span style={{width:6,height:6,borderRadius:"50%",background:"#d4c5a8",cursor:"pointer"}} onClick={()=>setWelcomeStep(1)}/>
-                  <span style={{width:6,height:6,borderRadius:"50%",background:"#1a1614"}}/>
+                  <span style={{width:6,height:6,background:"#222240",border:"1px solid #333355",cursor:"pointer",display:"inline-block"}} onClick={()=>setWelcomeStep(1)}/>
+                  <span style={{width:6,height:6,background:"#00CCFF",display:"inline-block"}}/>
                 </div>
                 <button onClick={dismissWelcome}
                   className="btn-hover"
-                  style={{padding:"8px 18px",borderRadius:3,border:"1.5px solid #1a1614",background:"#8b3a2f",color:"#fefcf7",fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:12,cursor:"pointer",letterSpacing:1,boxShadow:"3px 3px 0 #1a1614"}}>
+                  style={{padding:"8px 18px",borderRadius:0,border:"1px solid #00CCFF",background:"#00AACC",color:"#000000",fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:12,cursor:"pointer",letterSpacing:1}}>
                   begin →
                 </button>
               </div>
@@ -682,28 +754,28 @@ const [showAbout, setShowAbout] = useState(false);
       )}
 {/* About card - opens from top-right link */}
       {showAbout&&(
-        <div style={{position:"absolute",inset:0,background:"rgba(244,237,224,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:50,padding:20,backdropFilter:"blur(2px)"}}
+        <div style={{position:"absolute",inset:0,background:"rgba(0,0,0,0.88)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:50,padding:20,backdropFilter:"blur(2px)"}}
           onClick={()=>setShowAbout(false)}>
-          <div className="fade-in" 
+          <div className="fade-in"
             onClick={(e)=>e.stopPropagation()}
-            style={{background:"#fefcf7",padding:"40px 36px 32px",maxWidth:380,width:"100%",border:"1.5px solid #1a1614",boxShadow:"6px 6px 0 #1a1614",transform:"rotate(-1deg)",fontFamily:"'Courier New',monospace",position:"relative"}}>
+            style={{background:"#0F0F1E",padding:"40px 36px 32px",maxWidth:380,width:"100%",border:"2px solid #00CCFF",boxShadow:"0 0 24px rgba(0,204,255,0.15)",fontFamily:"'Courier New',monospace",position:"relative"}}>
             <button onClick={()=>setShowAbout(false)} className="close-btn"
-              style={{position:"absolute",top:12,right:14,background:"none",border:"none",cursor:"pointer",color:"#1a1614",fontSize:14,padding:0,lineHeight:1}}>✕</button>
-            <div style={{fontSize:14,color:"#1a1614",marginBottom:16,letterSpacing:0.5,lineHeight:1.4,fontWeight:"bold"}}>
+              style={{position:"absolute",top:12,right:14,background:"none",border:"none",cursor:"pointer",color:"#D8D8E0",fontSize:14,padding:0,lineHeight:1}}>✕</button>
+            <div style={{fontSize:14,color:"#FFFF55",marginBottom:16,letterSpacing:0.5,lineHeight:1.4,fontWeight:"bold"}}>
               about creative canvas.
             </div>
-            <div style={{fontSize:13,color:"#1a1614",lineHeight:1.7,marginBottom:20}}>
-              a small experiment in shared space — a paper canvas kept by everyone who passes through.
+            <div style={{fontSize:13,color:"#D8D8E0",lineHeight:1.7,marginBottom:20}}>
+              a small experiment in shared space — a wall kept by everyone who passes through.
               <br/><br/>
-              <span style={{fontStyle:"italic"}}>inspired by the ASCII bulletin boards of the early web, when leaving a mark was how people said hello.</span>
+              inspired by the ASCII bulletin boards of the early web, when leaving a mark was how people said hello.
             </div>
-            <div style={{fontSize:11,color:"#a8967a",lineHeight:1.6,marginBottom:20,paddingTop:14,borderTop:"1px dashed #d4c5a8"}}>
+            <div style={{fontSize:11,color:"#55556A",lineHeight:1.6,marginBottom:20,paddingTop:14,borderTop:"1px solid #222240"}}>
               designed & built by zee, 2026.<br/>
               react · supabase · a lot of revisions.
             </div>
             <a href="YOUR_PORTFOLIO_URL_HERE" target="_blank" rel="noopener noreferrer"
               className="btn-hover"
-              style={{display:"inline-block",padding:"8px 18px",borderRadius:3,border:"1.5px solid #1a1614",background:"#fefcf7",color:"#1a1614",fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:12,textDecoration:"none",letterSpacing:1,boxShadow:"3px 3px 0 #1a1614"}}>
+              style={{display:"inline-block",padding:"8px 18px",borderRadius:0,border:"1px solid #00AACC",background:"#0F0F1E",color:"#00CCFF",fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:12,textDecoration:"none",letterSpacing:1}}>
               see more of my work →
             </a>
           </div>
@@ -711,11 +783,11 @@ const [showAbout, setShowAbout] = useState(false);
       )}
       {/* CANVAS */}
       <div ref={cvsRef}
-        style={{position:"absolute",inset:0,background:"#f4ede0",cursor:placing?"crosshair":isDragging?"grabbing":"grab",touchAction:"none"}}
+        style={{position:"absolute",inset:0,background:"#0D0D2B",cursor:placing?"crosshair":isDragging?"grabbing":"grab",touchAction:"none"}}
         onMouseDown={onCvsMD} onMouseMove={onCvsMM} onMouseUp={onCvsMU} onMouseLeave={onCvsMU}
         onTouchStart={onTS} onTouchMove={onTM} onTouchEnd={()=>{lt.current=null; pinchDist.current=null;}}
         onClick={placeOnCanvas}>
-        <div style={{position:"absolute",inset:0,backgroundImage:"radial-gradient(circle,#c4b598 1px,transparent 1px)",backgroundSize:"30px 30px",opacity:0.5,pointerEvents:"none"}}/>
+        <div style={{position:"absolute",inset:0,backgroundImage:"linear-gradient(rgba(0,150,200,0.07) 1px,transparent 1px),linear-gradient(90deg,rgba(0,150,200,0.07) 1px,transparent 1px)",backgroundSize:"32px 32px",pointerEvents:"none"}}/>
         <div style={{position:"absolute",left:0,top:0,transform:`translate(${pan.x}px,${pan.y}px) scale(${scl})`,transformOrigin:"0 0",width:1,height:1}}>
           {posts.map(p=>{
             const isOwn = p.session_id === sessionId;
@@ -742,79 +814,82 @@ const [showAbout, setShowAbout] = useState(false);
       {/* Empty state */}
       {loaded&&posts.length===0&&!open&&!placing&&(
         <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}>
-          <pre style={{margin:0,textAlign:"center",color:"#a8967a",fontSize:13,lineHeight:2.2}}>{`  +  +  +\n\nthe canvas is empty\n\nbe the first to leave a mark`}</pre>
+          <div style={{textAlign:"center",fontFamily:"'Courier New',monospace"}}>
+            <pre style={{margin:0,textAlign:"center",color:"#55556A",fontSize:13,lineHeight:2.2}}>{`  +  +  +\n\nthe canvas is empty\n\nbe the first to leave a mark`}</pre>
+            <div style={{marginTop:8,color:"#00CCFF",fontSize:13}}><span className="blink">█</span></div>
+          </div>
         </div>
       )}
 {/* About link - top right */}
-      {!open&&!showWelcome&&(
+      {!open&&!showWelcome&&bootGone&&(
         <button onClick={()=>setShowAbout(true)}
-          style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 16px)",right:18,background:"none",border:"none",padding:0,cursor:"pointer",fontSize:11,color:"#1a1614",letterSpacing:0.5,fontFamily:"'Courier New',monospace",zIndex:5,opacity:0.7,transition:"opacity 0.15s ease"}}
+          style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 16px)",right:18,background:"none",border:"none",padding:0,cursor:"pointer",fontSize:11,color:"#55556A",letterSpacing:0.5,fontFamily:"'Courier New',monospace",zIndex:5,opacity:0.7,transition:"opacity 0.15s ease"}}
           onMouseEnter={(e)=>e.currentTarget.style.opacity="1"}
           onMouseLeave={(e)=>e.currentTarget.style.opacity="0.7"}>
           about ↗
         </button>
       )}
       {/* First-visit hint */}
-      {hint&&!placing&&loaded&&!showWelcome&&(
-        <div className="hint-text" style={{position:"absolute",bottom:"calc(env(safe-area-inset-bottom, 0px) + 160px)",left:"50%",transform:"translateX(-50%)",fontSize:10,color:"#a8967a",animation:"fd 5s ease forwards",pointerEvents:"none",textAlign:"center",maxWidth:"90vw",lineHeight:1.5}}>
+      {hint&&!placing&&loaded&&!showWelcome&&bootGone&&(
+        <div className="hint-text" style={{position:"absolute",bottom:"calc(env(safe-area-inset-bottom, 0px) + 160px)",left:"50%",transform:"translateX(-50%)",fontSize:10,color:"#55556A",animation:"fd 5s ease forwards",pointerEvents:"none",textAlign:"center",maxWidth:"90vw",lineHeight:1.5}}>
           drag or scroll to pan · ctrl+scroll to zoom · tap your own stamps to edit
         </div>
       )}
 
       {/* Stamped toast */}
       {toast&&(
-        <div className="toast" style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 60px)",left:"50%",transform:"translateX(-50%)",background:"#1a1614",color:"#fefcf7",padding:"8px 18px",borderRadius:3,fontSize:12,fontFamily:"'Courier New',monospace",letterSpacing:1,zIndex:25,boxShadow:"3px 3px 0 #8b3a2f",pointerEvents:"none"}}>
+        <div className="toast" style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 60px)",left:"50%",transform:"translateX(-50%)",background:"#0F0F1E",color:"#00CCFF",border:"1px solid #00AACC",padding:"8px 18px",borderRadius:0,fontSize:12,fontFamily:"'Courier New',monospace",letterSpacing:1,zIndex:25,boxShadow:"0 0 8px rgba(0,204,255,0.2)",pointerEvents:"none"}}>
           {toast}
         </div>
       )}
 
       {/* Placing banner */}
       {placing&&(
-        <div style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 16px)",left:"50%",transform:"translateX(-50%)",background:"rgba(254,252,247,0.96)",border:"1.5px solid #d4c5a8",borderRadius:6,padding:"9px 18px",display:"flex",gap:14,alignItems:"center",fontSize:11,color:"#1a1614",boxShadow:"0 2px 12px rgba(26,22,20,0.1)",backdropFilter:"blur(10px)",zIndex:20,maxWidth:"90vw"}}>
+        <div style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 16px)",left:"50%",transform:"translateX(-50%)",background:"rgba(13,13,43,0.96)",border:"1px solid #222240",borderRadius:0,padding:"9px 18px",display:"flex",gap:14,alignItems:"center",fontSize:11,color:"#D8D8E0",boxShadow:"0 0 12px rgba(0,0,0,0.4)",backdropFilter:"blur(10px)",zIndex:20,maxWidth:"90vw"}}>
           <span>click anywhere to place your mark</span>
-          <button onClick={()=>{setPlacing(false);setPending(null);setOpen(true);}} style={{background:"none",border:"none",cursor:"pointer",color:"#a8967a",fontSize:13,padding:0,lineHeight:1,flexShrink:0}}>✕</button>
+          <button onClick={()=>{setPlacing(false);setPending(null);setOpen(true);}} style={{background:"none",border:"none",cursor:"pointer",color:"#55556A",fontSize:13,padding:0,lineHeight:1,flexShrink:0}}>✕</button>
         </div>
       )}
 
       {/* Admin indicator */}
       {admin&&!open&&(
-        <div style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 14px)",right:14,fontSize:10,color:"#8b3a2f",background:"#fefcf7",padding:"4px 10px",borderRadius:4,border:"1.5px solid #8b3a2f",letterSpacing:1,zIndex:15}}>
+        <div style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 14px)",right:14,fontSize:10,color:"#FF5555",background:"#0F0F1E",padding:"4px 10px",borderRadius:0,border:"1px solid #FF5555",letterSpacing:1,zIndex:15}}>
           + admin mode
         </div>
       )}
 
       {/* Stamp menu */}
       {stampMenu&&(
-        <div style={{position:"absolute",left:stampMenu.x,top:stampMenu.y,background:"#fefcf7",border:"1.5px solid #1a1614",borderRadius:4,padding:5,boxShadow:"3px 3px 0 #1a1614",zIndex:30,display:"flex",flexDirection:"column",gap:2,minWidth:96}}>
+        <div style={{position:"absolute",left:stampMenu.x,top:stampMenu.y,background:"#12122A",border:"1px solid #333355",borderRadius:0,padding:5,boxShadow:"0 0 16px rgba(0,0,0,0.6)",zIndex:30,display:"flex",flexDirection:"column",gap:2,minWidth:96}}>
           {stampMenu.isOwn&&(
             <>
               <button onClick={editStamp} style={menuBtn}>✎ edit</button>
               <button onClick={duplicateStamp} style={menuBtn}>⎘ duplicate</button>
             </>
           )}
-          <button onClick={deleteStamp} style={{...menuBtn,color:"#8b3a2f"}}>✕ delete</button>
-          <button onClick={()=>setStampMenu(null)} style={{...menuBtn,color:"#a8967a"}}>cancel</button>
+          <button onClick={deleteStamp} style={{...menuBtn,color:"#FF5555"}}>✕ delete</button>
+          <button onClick={()=>setStampMenu(null)} style={{...menuBtn,color:"#55556A"}}>cancel</button>
         </div>
       )}
 
       {/* Admin password prompt */}
       {pwPrompt&&(
-        <div style={{position:"absolute",top:"30%",left:"50%",transform:"translateX(-50%)",background:"#fefcf7",border:"1.5px solid #1a1614",borderRadius:4,padding:"16px 18px",boxShadow:"4px 4px 0 #1a1614",zIndex:40,minWidth:240}}
+        <div style={{position:"absolute",top:"30%",left:"50%",transform:"translateX(-50%)",background:"#0F0F1E",border:"1px solid #222240",borderRadius:0,padding:"16px 18px",boxShadow:"0 0 20px rgba(0,0,0,0.6)",zIndex:40,minWidth:240}}
              className={pwErr?"shake":""}>
-          <div style={{fontSize:11,color:"#1a1614",marginBottom:8,letterSpacing:1}}>+ enter admin password</div>
+          <div style={{fontSize:11,color:"#D8D8E0",marginBottom:8,letterSpacing:1}}>+ enter admin password</div>
           <input type="password" value={pwInput} autoFocus
             onChange={e=>setPwInput(e.target.value)}
             onKeyDown={e=>{if(e.key==="Enter")checkPw();}}
-            style={{width:"100%",padding:"7px 10px",borderRadius:3,border:pwErr?"1.5px solid #8b3a2f":"1.5px solid #d4c5a8",fontFamily:"'Courier New',monospace",fontSize:12,background:"#fefcf7",boxSizing:"border-box",outline:"none",color:"#1a1614"}}/>
+            style={{width:"100%",padding:"7px 10px",borderRadius:0,border:pwErr?"1px solid #FF5555":"1px solid #222240",fontFamily:"'Courier New',monospace",fontSize:12,background:"#0A0A20",boxSizing:"border-box",outline:"none",color:"#D8D8E0"}}/>
           <div style={{display:"flex",gap:6,marginTop:10,justifyContent:"flex-end"}}>
-            <button onClick={()=>setPwPrompt(false)} style={{...menuBtn,color:"#a8967a"}}>cancel</button>
-            <button onClick={checkPw} style={{padding:"6px 14px",borderRadius:3,border:"1.5px solid #1a1614",background:"#8b3a2f",color:"#fefcf7",fontWeight:"bold",fontSize:11,cursor:"pointer",fontFamily:"inherit",boxShadow:"2px 2px 0 #1a1614"}}>enter</button>
+            <button onClick={()=>setPwPrompt(false)} style={{...menuBtn,color:"#55556A"}}>cancel</button>
+            <button onClick={checkPw} style={{padding:"6px 14px",borderRadius:0,border:"1px solid #00CCFF",background:"#00AACC",color:"#000000",fontWeight:"bold",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>enter</button>
           </div>
         </div>
       )}
 
       {/* Zoom controls */}
-      {!open&&!showWelcome&&(
+      {!open&&!showWelcome&&bootGone&&(
         <div style={{position:"absolute",bottom:"calc(env(safe-area-inset-bottom, 0px) + 90px)",right:18,display:"flex",flexDirection:"column",gap:5,zIndex:10}}>
           {[
             ...(posts.filter(p=>p.session_id===sessionId).length>0 ? [{l:"✦",f:()=>{
@@ -835,41 +910,55 @@ const [showAbout, setShowAbout] = useState(false);
             <button key={b.l} onClick={b.f}
               data-tooltip={b.l==="✦"?"find my mark":b.l==="⌂"?"home":b.l==="+"?"zoom in":"zoom out"}
               className="btn-hover"
-              style={{width:32,height:32,borderRadius:4,border:"1.5px solid #1a1614",background:"#fefcf7",cursor:"pointer",fontSize:b.l==="⌂"?12:16,color:"#1a1614",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"2px 2px 0 #1a1614",fontFamily:"'Courier New',monospace",transition:"all 0.12s ease"}}>{b.l}</button>
+              style={{width:32,height:32,borderRadius:0,border:"1px solid #222240",background:"#0F0F1E",cursor:"pointer",fontSize:b.l==="⌂"?12:16,color:"#D8D8E0",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Courier New',monospace",transition:"all 0.12s ease"}}>{b.l}</button>
           ))}
         </div>
       )}
 
-      {/* Counter - top left, simple */}
-      {posts.length>0&&!open&&(
-        <div 
+      {/* Counter - top left */}
+      {posts.length>0&&!open&&bootGone&&(
+        <div
           onClick={handleCounterTap}
-          style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 16px)",left:18,fontSize:11,color:"#1a1614",letterSpacing:0.5,cursor:"default",fontFamily:"'Courier New',monospace",zIndex:5}}>
-          {posts.length} mark{posts.length!==1?"s":""}
+          style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 16px)",left:18,cursor:"default",fontFamily:"'Courier New',monospace",zIndex:5}}>
+          <div style={{fontSize:11,color:"#55556A",letterSpacing:0.5}}>
+            {posts.length} mark{posts.length!==1?"s":""}
+          </div>
+          {visitorNumber>0&&(
+            <div style={{fontSize:10,color:"#00CCFF",letterSpacing:0.3,marginTop:3}}>
+              you are visitor #{String(visitorNumber).padStart(4,"0")}
+            </div>
+          )}
         </div>
       )}
 
       {/* Leave a mark CTA */}
-      {!open&&!placing&&!showWelcome&&(
+      {!open&&!placing&&!showWelcome&&bootGone&&(
         <button onClick={()=>{setOpen(true); setEditingId(null);}}
           className="btn-hover"
-          style={{...btnHoverStyle,position:"absolute",bottom:"calc(env(safe-area-inset-bottom, 0px) + 32px)",left:"50%",transform:"translateX(-50%)",padding:"11px 26px",borderRadius:4,border:"1.5px solid #1a1614",background:"#8b3a2f",color:"#fefcf7",fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:13,cursor:"pointer",letterSpacing:1.5,boxShadow:"3px 3px 0 #1a1614",whiteSpace:"nowrap",zIndex:10}}>
+          style={{...btnHoverStyle,position:"absolute",bottom:"calc(env(safe-area-inset-bottom, 0px) + 32px)",left:"50%",transform:"translateX(-50%)",padding:"11px 26px",borderRadius:0,border:"1px solid #00CCFF",background:"#00AACC",color:"#000000",fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:13,cursor:"pointer",letterSpacing:1.5,boxShadow:"0 0 12px rgba(0,204,255,0.3)",whiteSpace:"nowrap",zIndex:10}}>
           + leave a mark
         </button>
       )}
 
       {/* COMPOSER */}
       {open&&(
-        <div className="up composer-modal" style={{position:"fixed",bottom:0,left:16,right:16,width:"auto",maxWidth:480,margin:"0 auto",background:"#fefcf7",borderRadius:"8px 8px 0 0",boxShadow:"-3px 0 0 #1a1614, 3px 0 0 #1a1614, 0 -3px 0 #1a1614",padding:"14px 16px calc(env(safe-area-inset-bottom, 0px) + 22px)",border:"1.5px solid #1a1614",borderBottom:"none",zIndex:20,maxHeight:"85dvh",display:"flex",flexDirection:"column"}}>
+        <div className="up composer-modal" style={{position:"fixed",bottom:0,left:16,right:16,width:"auto",maxWidth:480,margin:"0 auto",background:"#0F0F1E",borderRadius:"0",boxShadow:"0 0 24px rgba(0,0,0,0.6)",padding:"0 16px calc(env(safe-area-inset-bottom, 0px) + 22px)",border:"1px solid #222240",borderTop:"2px solid #00CCFF",borderBottom:"none",zIndex:20,maxHeight:"85dvh",display:"flex",flexDirection:"column"}}>
+
+          {/* Title bar */}
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 0",marginBottom:10,borderBottom:"1px solid #222240",flexShrink:0}}>
+            <span style={{fontSize:11,color:"#FFFF55",letterSpacing:1,fontFamily:"'Courier New',monospace"}}>
+              {isEditing ? "[ editing stamp ]" : "[ leave a mark ]"}
+            </span>
+            <button onClick={()=>{setOpen(false); setEditingId(null);}} className="close-btn" style={{background:"none",border:"none",cursor:"pointer",color:"#55556A",fontSize:14,padding:0,lineHeight:1}}>✕</button>
+          </div>
 
           {/* Tab bar */}
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-            <div style={{display:"flex",border:"1.5px solid #1a1614",borderRadius:3,overflow:"hidden"}}>
+          <div style={{display:"flex",alignItems:"center",marginBottom:10,paddingBottom:8,borderBottom:"1px solid #1A1A38"}}>
+            <div style={{display:"flex",border:"1px solid #222240",borderRadius:0,overflow:"hidden"}}>
               {[["avatar","avatar"],["preset","preset"],["text","text"]].map(([t,lbl])=>(
-                <button key={t} onClick={()=>{setTab(t); if(t!=="text") setEditingId(null);}} style={{padding:"6px 14px",border:"none",background:tab===t?"#1a1614":"transparent",color:tab===t?"#fefcf7":"#1a1614",fontFamily:"'Courier New',monospace",fontSize:11,cursor:"pointer",fontWeight:tab===t?"bold":"normal",letterSpacing:0.5,transition:"background 0.15s ease, color 0.15s ease"}}>{lbl}</button>
+                <button key={t} onClick={()=>{setTab(t); if(t!=="text") setEditingId(null);}} style={{padding:"6px 14px",border:"none",background:tab===t?"#00AACC":"transparent",color:tab===t?"#000000":"#55556A",fontFamily:"'Courier New',monospace",fontSize:11,cursor:"pointer",fontWeight:tab===t?"bold":"normal",letterSpacing:0.5,transition:"background 0.15s ease, color 0.15s ease"}}>{lbl}</button>
               ))}
             </div>
-            <button onClick={()=>{setOpen(false); setEditingId(null);}} className="close-btn" style={{background:"none",border:"none",cursor:"pointer",color:"#1a1614",fontSize:14,padding:0,lineHeight:1}}>✕</button>
           </div>
 
           {/* SCROLLABLE CONTENT */}
@@ -878,13 +967,13 @@ const [showAbout, setShowAbout] = useState(false);
           {/* AVATAR TAB - WIZARD */}
           {tab==="avatar" && (
             <>
-              <div style={{fontSize:11,color:"#1a1614",letterSpacing:0.3,marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center",fontFamily:"'Courier New',monospace"}}>
+              <div style={{fontSize:11,color:"#D8D8E0",letterSpacing:0.3,marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center",fontFamily:"'Courier New',monospace"}}>
                 <span>
                   {step===1 && "pick a face"}
                   {step===2 && "pick your hair"}
                   {step===3 && "make it yours"}
                 </span>
-                <span style={{color:"#a8967a",fontSize:14,letterSpacing:2}}>
+                <span style={{color:"#55556A",fontSize:14,letterSpacing:2}}>
                   {face?.complete ? (
                     <>{step===1?"●":"○"} {step===3?"●":"○"}</>
                   ) : (
@@ -898,9 +987,9 @@ const [showAbout, setShowAbout] = useState(false);
                 <div className="avatar-grid" style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,maxHeight:330,overflowY:"auto",paddingRight:3,paddingBottom:3}}>
                   {FACES.map(f=>(
                     <button key={f.id} onClick={()=>selectFace(f)}
-                      style={{padding:"6px 4px",borderRadius:3,border:face?.id===f.id?"2px solid #8b3a2f":"1.5px solid #d4c5a8",background:face?.id===f.id?"#fefcf7":"#faf5e8",cursor:"pointer",textAlign:"center",overflow:"hidden"}}>
-                      <pre style={{margin:0,fontSize:6.5,lineHeight:1.35,color:face?.id===f.id?"#1a1614":"#5a4a3a",fontFamily:"'Courier New',monospace",whiteSpace:"pre",height:78,overflow:"hidden"}}>{f.art}</pre>
-                      <div style={{fontSize:8,color:face?.id===f.id?"#8b3a2f":"#a8967a",marginTop:3,fontFamily:"'Courier New',monospace",letterSpacing:0.3}}>{f.name}{f.complete?" ●":""}</div>
+                      style={{padding:"6px 4px",borderRadius:0,border:face?.id===f.id?"2px solid #00CCFF":"1px solid #222240",background:face?.id===f.id?"#12122A":"#0A0A20",cursor:"pointer",textAlign:"center",overflow:"hidden"}}>
+                      <pre style={{margin:0,fontSize:6.5,lineHeight:1.35,color:face?.id===f.id?"#D8D8E0":"#55556A",fontFamily:"'Courier New',monospace",whiteSpace:"pre",height:78,overflow:"hidden"}}>{f.art}</pre>
+                      <div style={{fontSize:8,color:face?.id===f.id?"#00CCFF":"#55556A",marginTop:3,fontFamily:"'Courier New',monospace",letterSpacing:0.3}}>{f.name}{f.complete?" ●":""}</div>
                     </button>
                   ))}
                 </div>
@@ -913,9 +1002,9 @@ const [showAbout, setShowAbout] = useState(false);
                     const previewArt = combineHF(h, face || FACES[6], "");
                     return (
                       <button key={h.id} onClick={()=>selectHair(h)}
-                        style={{padding:"6px 4px",borderRadius:3,border:hair?.id===h.id?"2px solid #8b3a2f":"1.5px solid #d4c5a8",background:hair?.id===h.id?"#fefcf7":"#faf5e8",cursor:"pointer",textAlign:"center",overflow:"hidden"}}>
-                        <pre style={{margin:0,fontSize:6.5,lineHeight:1.35,color:hair?.id===h.id?"#1a1614":"#5a4a3a",fontFamily:"'Courier New',monospace",whiteSpace:"pre",height:78,overflow:"hidden"}}>{previewArt}</pre>
-                        <div style={{fontSize:8,color:hair?.id===h.id?"#8b3a2f":"#a8967a",marginTop:3,fontFamily:"'Courier New',monospace",letterSpacing:0.3}}>{h.name}</div>
+                        style={{padding:"6px 4px",borderRadius:0,border:hair?.id===h.id?"2px solid #00CCFF":"1px solid #222240",background:hair?.id===h.id?"#12122A":"#0A0A20",cursor:"pointer",textAlign:"center",overflow:"hidden"}}>
+                        <pre style={{margin:0,fontSize:6.5,lineHeight:1.35,color:hair?.id===h.id?"#D8D8E0":"#55556A",fontFamily:"'Courier New',monospace",whiteSpace:"pre",height:78,overflow:"hidden"}}>{previewArt}</pre>
+                        <div style={{fontSize:8,color:hair?.id===h.id?"#00CCFF":"#55556A",marginTop:3,fontFamily:"'Courier New',monospace",letterSpacing:0.3}}>{h.name}</div>
                       </button>
                     );
                   })}
@@ -927,20 +1016,20 @@ const [showAbout, setShowAbout] = useState(false);
                 <>
                   <textarea ref={wsRef} value={workspace} onChange={e=>setWorkspace(e.target.value)}
                     className="workspace-textarea"
-                    style={{width:"100%",height:220,padding:"10px 12px",borderRadius:3,border:"1.5px solid #d4c5a8",fontFamily:"'Courier New',monospace",fontSize:12,background:"#faf5e8",boxSizing:"border-box",resize:"none",outline:"none",color:col,lineHeight:1.4,caretColor:col,whiteSpace:"pre"}}
+                    style={{width:"100%",height:220,padding:"10px 12px",borderRadius:0,border:"1px solid #222240",fontFamily:"'Courier New',monospace",fontSize:12,background:"#0A0A20",boxSizing:"border-box",resize:"none",outline:"none",color:col,lineHeight:1.4,caretColor:col,whiteSpace:"pre"}}
                     placeholder="your character appears here · edit it freely"/>
                 </>
               )}
 
               {/* Nav */}
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:12,gap:8,position:"sticky",bottom:0,background:"#fefcf7",paddingTop:8,paddingBottom:2,zIndex:5}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:12,gap:8,position:"sticky",bottom:0,background:"#0F0F1E",paddingTop:8,paddingBottom:2,zIndex:5}}>
                 <button onClick={backStep} disabled={step===1}
                   className={step>1?"btn-back":""}
-                  style={{...btnHoverStyle,padding:"7px 14px",borderRadius:3,border:"1.5px solid #1a1614",background:step===1?"#ede4d0":"#fefcf7",color:step===1?"#c4b598":"#1a1614",cursor:step===1?"default":"pointer",fontFamily:"'Courier New',monospace",fontSize:11,boxShadow:step===1?"none":"2px 2px 0 #1a1614"}}>← back</button>
+                  style={{...btnHoverStyle,padding:"7px 14px",borderRadius:0,border:"1px solid "+(step===1?"#1A1A38":"#333355"),background:step===1?"#111128":"#0F0F1E",color:step===1?"#333355":"#D8D8E0",cursor:step===1?"default":"pointer",fontFamily:"'Courier New',monospace",fontSize:11,boxShadow:"none"}}>← back</button>
                 {step<3 && (
                   <button onClick={nextStep} disabled={step===1?!face:!hair}
                     className={(step===1?face:hair)?"btn-hover":""}
-                    style={{...btnHoverStyle,padding:"7px 18px",borderRadius:3,border:"1.5px solid #1a1614",background:(step===1?face:hair)?"#8b3a2f":"#ede4d0",color:(step===1?face:hair)?"#fefcf7":"#c4b598",cursor:(step===1?face:hair)?"pointer":"default",fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:11,letterSpacing:0.5,boxShadow:(step===1?face:hair)?"2px 2px 0 #1a1614":"none"}}>next →</button>
+                    style={{...btnHoverStyle,padding:"7px 18px",borderRadius:0,border:"1px solid "+((step===1?face:hair)?"#00CCFF":"#222240"),background:(step===1?face:hair)?"#00AACC":"#111128",color:(step===1?face:hair)?"#000000":"#333355",cursor:(step===1?face:hair)?"pointer":"default",fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:11,letterSpacing:0.5,boxShadow:"none"}}>next →</button>
                 )}
                 {step===3 && <div/>}
               </div>
@@ -950,7 +1039,7 @@ const [showAbout, setShowAbout] = useState(false);
           {/* PRESET TAB */}
           {tab==="preset" && (
             <>
-              <div style={{background:"#faf5e8",borderRadius:3,padding:"12px 10px",marginBottom:12,minHeight:140,display:"flex",alignItems:"center",justifyContent:"center",border:"1.5px solid #d4c5a8"}}>
+              <div style={{background:"#0A0A20",borderRadius:0,padding:"12px 10px",marginBottom:12,minHeight:140,display:"flex",alignItems:"center",justifyContent:"center",border:"1px solid #222240"}}>
                 <pre style={{margin:0,fontSize:11,lineHeight:1.4,color:col,fontFamily:"'Courier New',monospace",whiteSpace:"pre"}}>
                   {preset ? preset.art + (presetText.trim()?"\n"+presetText.trim():"") : "pick a preset below"}
                 </pre>
@@ -958,15 +1047,15 @@ const [showAbout, setShowAbout] = useState(false);
               <div className="preset-grid" style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,maxHeight:200,overflowY:"auto",paddingRight:3,paddingBottom:3}}>
                 {PRESETS.map((p,i)=>(
                   <button key={i} onClick={()=>setPreset(p)}
-                    style={{padding:"6px 4px",borderRadius:3,border:preset?.name===p.name?"2px solid #8b3a2f":"1.5px solid #d4c5a8",background:preset?.name===p.name?"#fefcf7":"#faf5e8",cursor:"pointer",textAlign:"center",overflow:"hidden"}}>
-                    <pre style={{margin:0,fontSize:6,lineHeight:1.35,color:preset?.name===p.name?"#1a1614":"#5a4a3a",fontFamily:"'Courier New',monospace",whiteSpace:"pre",height:62,overflow:"hidden"}}>{p.art}</pre>
-                    <div style={{fontSize:8,color:preset?.name===p.name?"#8b3a2f":"#a8967a",marginTop:3,fontFamily:"'Courier New',monospace",letterSpacing:0.3}}>{p.name}</div>
+                    style={{padding:"6px 4px",borderRadius:0,border:preset?.name===p.name?"2px solid #00CCFF":"1px solid #222240",background:preset?.name===p.name?"#12122A":"#0A0A20",cursor:"pointer",textAlign:"center",overflow:"hidden"}}>
+                    <pre style={{margin:0,fontSize:6,lineHeight:1.35,color:preset?.name===p.name?"#D8D8E0":"#55556A",fontFamily:"'Courier New',monospace",whiteSpace:"pre",height:62,overflow:"hidden"}}>{p.art}</pre>
+                    <div style={{fontSize:8,color:preset?.name===p.name?"#00CCFF":"#55556A",marginTop:3,fontFamily:"'Courier New',monospace",letterSpacing:0.3}}>{p.name}</div>
                   </button>
                 ))}
               </div>
               <input value={presetText} onChange={e=>setPresetText(e.target.value)}
                 placeholder="add a name or message below..."
-                style={{width:"100%",marginTop:10,padding:"8px 10px",borderRadius:3,border:"1.5px solid #d4c5a8",fontFamily:"'Courier New',monospace",fontSize:12,background:"#faf5e8",boxSizing:"border-box",outline:"none",color:"#1a1614"}}/>
+                style={{width:"100%",marginTop:10,padding:"8px 10px",borderRadius:0,border:"1px solid #222240",fontFamily:"'Courier New',monospace",fontSize:12,background:"#0A0A20",boxSizing:"border-box",outline:"none",color:"#D8D8E0"}}/>
             </>
           )}
 
@@ -974,13 +1063,13 @@ const [showAbout, setShowAbout] = useState(false);
           {tab==="text" && (
             <>
               {isEditing && (
-                <div style={{fontSize:10,color:"#8b3a2f",marginBottom:6,letterSpacing:0.5}}>✎ editing your stamp</div>
+                <div style={{fontSize:10,color:"#00CCFF",marginBottom:6,letterSpacing:0.5}}>✎ editing your stamp</div>
               )}
               <textarea ref={taRef} value={freeText} onChange={e=>setFreeText(e.target.value)} autoFocus
-                style={{width:"100%",height:200,padding:"10px 12px",borderRadius:3,border:"1.5px solid #d4c5a8",fontFamily:"'Courier New',monospace",fontSize:13,background:"#faf5e8",boxSizing:"border-box",resize:"none",outline:"none",color:col,lineHeight:1.5,caretColor:col,whiteSpace:"pre"}}
+                style={{width:"100%",height:200,padding:"10px 12px",borderRadius:0,border:"1px solid #222240",fontFamily:"'Courier New',monospace",fontSize:13,background:"#0A0A20",boxSizing:"border-box",resize:"none",outline:"none",color:col,lineHeight:1.5,caretColor:col,whiteSpace:"pre"}}
                 placeholder={"paste, type, or haiku\n\nfeel free to make it yours."}/>
               <div style={{marginTop:10}}>
-                <div style={{fontSize:10,color:"#a8967a",letterSpacing:0.3,marginBottom:5,fontFamily:"'Courier New',monospace",fontStyle:"italic"}}>little decorations</div>
+                <div style={{fontSize:10,color:"#55556A",letterSpacing:0.3,marginBottom:5,fontFamily:"'Courier New',monospace"}}>little decorations</div>
                 <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
                   {ORNS.map((o,i)=>(
                     <button key={i} onClick={()=>{
@@ -988,7 +1077,7 @@ const [showAbout, setShowAbout] = useState(false);
                       const s=ta.selectionStart, e=ta.selectionEnd;
                       setFreeText(freeText.slice(0,s)+o+freeText.slice(e));
                       requestAnimationFrame(()=>{ ta.focus(); ta.selectionStart=ta.selectionEnd=s+o.length; });
-                    }} style={{padding:"3px 8px",borderRadius:3,border:"1.5px solid #d4c5a8",background:"#faf5e8",cursor:"pointer",fontFamily:"'Courier New',monospace",fontSize:13,color:"#1a1614",minWidth:24}}>{o}</button>
+                    }} style={{padding:"3px 8px",borderRadius:0,border:"1px solid #222240",background:"#0A0A20",cursor:"pointer",fontFamily:"'Courier New',monospace",fontSize:13,color:"#D8D8E0",minWidth:24}}>{o}</button>
                   ))}
                 </div>
               </div>
@@ -999,15 +1088,15 @@ const [showAbout, setShowAbout] = useState(false);
           </div>
 
           {/* Footer */}
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:14,paddingTop:10,borderTop:"1.5px solid #d4c5a8",flexShrink:0}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:14,paddingTop:10,borderTop:"1px solid #222240",flexShrink:0}}>
             <div style={{display:"flex",gap:6,alignItems:"center"}}>
               {COLS.map(c=>(
-                <button key={c} onClick={()=>setCol(c)} className="color-dot" style={{width:20,height:20,borderRadius:"50%",background:c,cursor:"pointer",border:col===c?"2px solid #1a1614":"1.5px solid #d4c5a8",padding:0}}/>
+                <button key={c} onClick={()=>setCol(c)} className="color-dot" style={{width:16,height:16,borderRadius:0,background:c,cursor:"pointer",border:col===c?"2px solid #00CCFF":"1px solid #333355",padding:0}}/>
               ))}
             </div>
             <button onClick={stampOrUpdate} disabled={!canStamp}
               className={canStamp?"btn-hover":""}
-              style={{...btnHoverStyle,padding:"9px 22px",borderRadius:3,border:"1.5px solid #1a1614",background:canStamp?"#8b3a2f":"#ede4d0",color:canStamp?"#fefcf7":"#c4b598",fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:12,cursor:canStamp?"pointer":"default",letterSpacing:0.8,boxShadow:canStamp?"2px 2px 0 #1a1614":"none"}}>
+              style={{...btnHoverStyle,padding:"9px 22px",borderRadius:0,border:"1px solid "+(canStamp?"#00CCFF":"#222240"),background:canStamp?"#00AACC":"#111128",color:canStamp?"#000000":"#333355",fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:12,cursor:canStamp?"pointer":"default",letterSpacing:0.8,boxShadow:canStamp?"0 0 8px rgba(0,204,255,0.3)":"none"}}>
               {isEditing?"update ✓":"stamp it →"}
             </button>
           </div>
@@ -1017,4 +1106,4 @@ const [showAbout, setShowAbout] = useState(false);
   );
 }
 
-const menuBtn = { padding:"5px 10px", borderRadius:3, border:"none", background:"transparent", cursor:"pointer", color:"#1a1614", fontFamily:"'Courier New',monospace", fontSize:11, textAlign:"left", letterSpacing:0.3 };
+const menuBtn = { padding:"5px 10px", borderRadius:0, border:"none", background:"transparent", cursor:"pointer", color:"#D8D8E0", fontFamily:"'Courier New',monospace", fontSize:11, textAlign:"left", letterSpacing:0.3 };
