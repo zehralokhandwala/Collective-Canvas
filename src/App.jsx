@@ -7,8 +7,7 @@ const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 const HAIRS = [
-  { id:"bald",  name:"bald",  type:"none",   art:"" },
-  { id:"wave",  name:"wave",  type:"topper", art:"       .-~~~-.       \n      /       \\      " },
+  { id:"short", name:"short", type:"topper", art:"       .-~~~-.       \n      /       \\      " },
   { id:"curly", name:"curly", type:"topper", art:"       .:=:=:.       \n      i;'~ ~`:i      " },
   { id:"wavy",  name:"wavy",  type:"topper", art:"       .-~~~-.       \n      (//'~`\\\\)      " },
   { id:"afro",  name:"afro",  type:"wrap",   art:"        _..._        \n      .~(|||)~.      \n     ((//'~`\\\\))     \n     (!       !)     " },
@@ -44,8 +43,11 @@ const PRESETS = [
 ];
 
 const ORNS = ["✿","❀","✾","❃","❁","✦","✧","★","☆","♡","♥","·","˚","°","⊹","≋","∿","~"];
+// Avatar workshop building blocks — tap to insert at cursor
+const EYES   = ["◉","●","○","◕","◔","⊙","°","˚","¬","x"];
+const MOUTHS = ["‿","◡","ω","︵","﹏","▽","ᴥ","_","o","3"];
+const BITS   = ["✦","★","♡","~","✧","☆","♥","·","ᕙ","ᕗ"];
 const COLS = ["#55FF55","#55FFFF","#FFFF55","#FF5555","#FF55FF","#5577FF","#FFFFFF","#FFAA00"];
-const PASSWORD = "zee786";
 
 function combineHF(hair, face, textBelow) {
   if (!face) return "";
@@ -59,6 +61,38 @@ function combineHF(hair, face, textBelow) {
   }
   if (textBelow && textBelow.trim()) out += "\n" + textBelow.trim();
   return out;
+}
+
+// Wraps content in a real ASCII box-drawing frame (textfile-style), sized to content
+function AsciiBox({ children, color = "#00CCFF", titleColor = "#FFFF55", title, background = "#0F0F1E", maxWidth = 360, className, style, onClick }) {
+  const rail = Array(60).fill("║").join("\n");
+  const edge = { color, fontFamily:"'Courier New',monospace", fontSize:14, lineHeight:1, whiteSpace:"pre", userSelect:"none" };
+  const top = (
+    <div style={{display:"flex", ...edge}}>
+      <span>{title ? "╔══" : "╔"}</span>
+      {title && <span style={{color:titleColor}}>{"[ " + title + " ]"}</span>}
+      <span style={{flex:1, overflow:"hidden"}}>{"═".repeat(220)}</span>
+      <span>╗</span>
+    </div>
+  );
+  const bottom = (
+    <div style={{display:"flex", ...edge}}>
+      <span>╚</span>
+      <span style={{flex:1, overflow:"hidden"}}>{"═".repeat(220)}</span>
+      <span>╝</span>
+    </div>
+  );
+  return (
+    <div className={className} onClick={onClick} style={{maxWidth, width:"100%", background, ...style}}>
+      {top}
+      <div style={{position:"relative"}}>
+        <div style={{position:"absolute", top:0, bottom:0, left:0, overflow:"hidden", ...edge}}>{rail}</div>
+        <div style={{position:"absolute", top:0, bottom:0, right:0, overflow:"hidden", ...edge}}>{rail}</div>
+        <div style={{position:"relative"}}>{children}</div>
+      </div>
+      {bottom}
+    </div>
+  );
 }
 
 export default function App() {
@@ -79,10 +113,7 @@ export default function App() {
     return newId;
   });
   const initialPanSet = useRef(false);
-  const [admin, setAdmin] = useState(false);
-  const [pwPrompt, setPwPrompt] = useState(false);
-  const [pwInput, setPwInput] = useState("");
-  const [pwErr, setPwErr] = useState(false);
+  const camAnim = useRef(null);
 
   const [posts, setPosts] = useState([]);
   const [loaded, setLoaded] = useState(false);
@@ -91,9 +122,8 @@ export default function App() {
   const [open, setOpen] = useState(false);
   const [tab, setTab]   = useState("avatar");
 
-  const [step, setStep] = useState(1);
   const [face, setFace] = useState(null);
-  const [hair, setHair] = useState(HAIRS[0]);
+  const [hair, setHair] = useState(null);
   const [workspace, setWorkspace] = useState("");
 
   const [preset, setPreset] = useState(null);
@@ -106,16 +136,6 @@ export default function App() {
   const [ghost, setGhost] = useState({x:-999,y:-999});
   const [popped, setPopped] = useState(null);
   const [toast, setToast] = useState(null);
-  const [editingId, setEditingId] = useState(null);
-  const [stampMenu, setStampMenu] = useState(null);
-
-  // Stamp dragging state
-  const [draggingStamp, setDraggingStamp] = useState(null);
-  const stampDragStart = useRef({x:0, y:0, stampX:0, stampY:0});
-
-  // Triple-tap tracking for admin trigger
-  const tapTimerRef = useRef(null);
-  const tapCountRef = useRef(0);
 // Welcome card state - two-step onboarding, shown only on first visit
   const [showWelcome, setShowWelcome] = useState(() => {
     return !localStorage.getItem('creative-canvas-welcomed');
@@ -183,6 +203,7 @@ const [showAbout, setShowAbout] = useState(false);
     const el=cvsRef.current; if(!el) return;
     const fn=e=>{
       if(open) return;
+      stopCam();
       e.preventDefault();
       if (e.ctrlKey || e.metaKey) {
         const factor = e.deltaY < 0 ? 1.12 : 0.9;
@@ -195,39 +216,15 @@ const [showAbout, setShowAbout] = useState(false);
     return ()=>el.removeEventListener("wheel",fn);
   },[open]);
 
-  // Admin shortcut
-  useEffect(()=>{
-    const fn=e=>{
-      if((e.ctrlKey||e.metaKey)&&e.shiftKey&&(e.key==="A"||e.key==="a")) {
-        e.preventDefault();
-        if(admin){ setAdmin(false); } else { setPwPrompt(true); setPwInput(""); setPwErr(false); }
-      }
-      if(e.key==="Escape") { setPwPrompt(false); setStampMenu(null); }
-    };
-    window.addEventListener("keydown",fn);
-    return ()=>window.removeEventListener("keydown",fn);
-  },[admin]);
-
-  function checkPw() {
-    if (pwInput === PASSWORD) { setAdmin(true); setPwPrompt(false); setPwInput(""); setPwErr(false); }
-    else { setPwErr(true); setTimeout(()=>setPwErr(false), 1500); }
-  }
-
-  // Simplified drag handlers
   function onCvsMD(e){
-    if(placing||e.button!==0||open||stampMenu||draggingStamp) return;
+    if(placing||e.button!==0||open) return;
+    stopCam();
     cvDrag.current=true;
     setIsDragging(true);
     lm.current={x:e.clientX,y:e.clientY};
   }
 
   function onCvsMM(e){
-    // Handle stamp dragging first
-    if(draggingStamp) {
-      onStampDragMove(e);
-      return;
-    }
-
     // Handle placing ghost
     if(placing){
       const rect=cvsRef.current.getBoundingClientRect();
@@ -244,13 +241,6 @@ const [showAbout, setShowAbout] = useState(false);
   }
 
   function onCvsMU(){
-    // Handle stamp drag end
-    if(draggingStamp) {
-      onStampDragEnd();
-      return;
-    }
-
-    // Handle canvas pan end
     cvDrag.current=false;
     setIsDragging(false);
   }
@@ -258,6 +248,7 @@ const [showAbout, setShowAbout] = useState(false);
   const pinchDist = useRef(null);
 
   function onTS(e){
+    stopCam();
     if(e.touches.length===2) {
       const dx = e.touches[0].clientX - e.touches[1].clientX;
       const dy = e.touches[0].clientY - e.touches[1].clientY;
@@ -289,48 +280,6 @@ const [showAbout, setShowAbout] = useState(false);
   lt.current={x:e.touches[0].clientX,y:e.touches[0].clientY};
   setPan(p=>({x:p.x+dx,y:p.y+dy}));
 }
-  // Stamp drag handlers
-  function onStampDragStart(stamp, e) {
-    e.stopPropagation();
-    if(stamp.session_id !== sessionId && !admin) return;
-    setDraggingStamp(stamp.id);
-    stampDragStart.current = {
-      x: e.clientX,
-      y: e.clientY,
-      stampX: stamp.x,
-      stampY: stamp.y
-    };
-  }
-
-  function onStampDragMove(e) {
-    if(!draggingStamp) return;
-    const dx = (e.clientX - stampDragStart.current.x) / sclR.current;
-    const dy = (e.clientY - stampDragStart.current.y) / sclR.current;
-
-    setPosts(posts.map(p =>
-      p.id === draggingStamp
-        ? {...p, x: stampDragStart.current.stampX + dx, y: stampDragStart.current.stampY + dy}
-        : p
-    ));
-  }
-
-  async function onStampDragEnd() {
-    if(!draggingStamp) return;
-    const draggedStamp = posts.find(p => p.id === draggingStamp);
-    if(!draggedStamp) return;
-
-    try {
-      await supabase
-        .from('stamps')
-        .update({ x: draggedStamp.x, y: draggedStamp.y })
-        .eq('id', draggingStamp);
-    } catch(err) {
-      console.error('Error updating stamp position:', err);
-    }
-
-    setDraggingStamp(null);
-  }
-
   // Estimate stamp dimensions for collision detection
   function getStampSize(content) {
     const lines = (content || "").split('\n');
@@ -391,8 +340,30 @@ const [showAbout, setShowAbout] = useState(false);
     } catch(e) {}
   }
 
+  // Cancel any in-flight camera animation (e.g. when the user grabs the canvas)
+  function stopCam() {
+    if (camAnim.current) { cancelAnimationFrame(camAnim.current); camAnim.current = null; }
+  }
+
+  // Smoothly glide pan + scale to a target view (the post-stamp "belonging" zoom-out)
+  function animateCamera(toPan, toScl, dur = 1500) {
+    stopCam();
+    const fromPan = { ...panR.current };
+    const fromScl = sclR.current;
+    const start = performance.now();
+    const ease = t => (t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3) / 2); // easeInOutCubic
+    const tick = now => {
+      const t = Math.min((now - start) / dur, 1);
+      const e = ease(t);
+      setScl(fromScl + (toScl - fromScl) * e);
+      setPan({ x: fromPan.x + (toPan.x - fromPan.x) * e, y: fromPan.y + (toPan.y - fromPan.y) * e });
+      if (t < 1) camAnim.current = requestAnimationFrame(tick);
+      else camAnim.current = null;
+    };
+    camAnim.current = requestAnimationFrame(tick);
+  }
+
   async function placeOnCanvas(e) {
-    if(stampMenu){ setStampMenu(null); return; }
     if(!placing||!pending) return;
     playClick();
     const rect=cvsRef.current.getBoundingClientRect();
@@ -421,40 +392,20 @@ const [showAbout, setShowAbout] = useState(false);
       await load(); // Reload to get the new stamp
       setPopped(np.id);
       setTimeout(()=>setPopped(null),700);
-      setToast("✓ stamped");
-      setTimeout(()=>setToast(null), 2200);
+      // The belonging moment: glide the camera back to show your mark among the others
+      const size = getStampSize(np.content);
+      const centerX = np.x + size.width / 2;
+      const centerY = np.y + size.height / 2;
+      const targetScl = Math.min(sclR.current, 0.5); // never zoom in — always pull back
+      animateCamera({
+        x: window.innerWidth / 2 - centerX * targetScl,
+        y: window.innerHeight / 2 - centerY * targetScl,
+      }, targetScl, 1500);
+      setToast("✓ you're on the wall");
+      setTimeout(()=>setToast(null), 4500);
     } catch(err){
       console.error('Error placing stamp:', err);
     }
-  }
-
-  function onStampClick(p, e) {
-    e.stopPropagation();
-    if(placing) return;
-    const isOwn = p.session_id === sessionId;
-    if(!isOwn && !admin) return;
-    const rect = cvsRef.current.getBoundingClientRect();
-    setStampMenu({ stamp:p, isOwn, x:e.clientX-rect.left, y:e.clientY-rect.top });
-  }
-
-  // Triple-tap handler for mobile admin
-  function handleCounterTap() {
-    tapCountRef.current++;
-    if(tapCountRef.current === 3) {
-      if(admin) {
-        setAdmin(false);
-      } else {
-        setPwPrompt(true);
-        setPwInput("");
-        setPwErr(false);
-      }
-      tapCountRef.current = 0;
-    }
-
-    if(tapTimerRef.current) clearTimeout(tapTimerRef.current);
-    tapTimerRef.current = setTimeout(() => {
-      tapCountRef.current = 0;
-    }, 800);
   }
 
   function getCurrentContent() {
@@ -467,61 +418,25 @@ const [showAbout, setShowAbout] = useState(false);
     return freeText.replace(/\s+$/, "");
   }
 
-  async function stampOrUpdate() {
+  function stampOrUpdate() {
     const content = getCurrentContent();
     if (!content.trim()) return;
-    if (editingId) {
-      try {
-        const { error } = await supabase
-          .from('stamps')
-          .update({ content, color: col })
-          .eq('id', editingId);
-
-        if (error) throw error;
-        await load();
-        setEditingId(null);
-        setOpen(false);
-        resetComposer();
-      } catch(err){
-        console.error('Error updating stamp:', err);
-      }
-    } else {
-      setPending({ id:`${Date.now()}-${Math.random().toString(36).slice(2,6)}`, content, color:col, ts:Date.now(), sessionId });
-      setPlacing(true); setOpen(false);
-    }
+    setPending({ id:`${Date.now()}-${Math.random().toString(36).slice(2,6)}`, content, color:col, ts:Date.now(), sessionId });
+    setPlacing(true); setOpen(false);
   }
 
   function resetComposer() {
-    setStep(1); setFace(null); setHair(HAIRS[0]); setWorkspace("");
+    setFace(null); setHair(null); setWorkspace("");
     setPreset(null); setPresetText(""); setFreeText("");
   }
 
-  function editStamp() {
-    if(!stampMenu) return;
-    const p = stampMenu.stamp;
-    setFreeText(p.content); setCol(p.color); setEditingId(p.id);
-    setTab("text"); setOpen(true); setStampMenu(null);
-  }
-  function duplicateStamp() {
-    if(!stampMenu) return;
-    const p = stampMenu.stamp;
-    setFreeText(p.content); setCol(p.color); setEditingId(null);
-    setTab("text"); setOpen(true); setStampMenu(null);
-  }
-  async function deleteStamp() {
-    if(!stampMenu) return;
-    try {
-      const { error } = await supabase
-        .from('stamps')
-        .delete()
-        .eq('id', stampMenu.stamp.id);
-
-      if (error) throw error;
-      await load();
-      setStampMenu(null);
-    } catch(err){
-      console.error('Error deleting stamp:', err);
-    }
+  // Insert an ASCII building block at the cursor in the avatar workspace
+  function insertIntoWorkspace(str) {
+    const ta = wsRef.current;
+    if (!ta) { setWorkspace(t => t + str); return; }
+    const s = ta.selectionStart, e = ta.selectionEnd;
+    setWorkspace(workspace.slice(0, s) + str + workspace.slice(e));
+    requestAnimationFrame(() => { ta.focus(); ta.selectionStart = ta.selectionEnd = s + str.length; });
   }
 
   function selectFace(f) {
@@ -534,27 +449,15 @@ const [showAbout, setShowAbout] = useState(false);
     const newWs = combineHF(h, face, "");
     setWorkspace(newWs);
   }
-  function gotoStep(s) {
-    if (s === 3) {
-      // rebuild workspace from current selections
-      const c = combineHF(hair, face, "");
-      setWorkspace(c);
-    }
-    setStep(s);
-  }
-  function nextStep() {
-    if (step === 1) {
-      if (face?.complete) gotoStep(3);
-      else gotoStep(2);
-    } else if (step === 2) gotoStep(3);
-  }
-  function backStep() {
-    if (step === 3) gotoStep(face?.complete ? 1 : 2);
-    else if (step === 2) gotoStep(1);
-  }
-
   const canStamp = getCurrentContent().trim().length > 0;
-  const isEditing = !!editingId;
+
+  // The most recently created stamp — gets a gentle "still warm" pulse
+  const lastStampId = posts.length
+    ? posts.reduce((a, b) => (new Date(b.created_at) > new Date(a.created_at) ? b : a)).id
+    : null;
+
+  // Terminal-style block cursor for the canvas
+  const blockCursor = "url(\"data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='14'%20height='22'%3E%3Crect%20x='2'%20y='2'%20width='9'%20height='17'%20fill='%2300CCFF'%20fill-opacity='0.4'%20stroke='%2300CCFF'%20stroke-opacity='0.85'/%3E%3C/svg%3E\") 6 10, grab";
 
   // Visitor rank: sort unique session IDs by first stamp date
   const sessionFirstSeen = {};
@@ -565,7 +468,10 @@ const [showAbout, setShowAbout] = useState(false);
     }
   });
   const sortedSessions = Object.keys(sessionFirstSeen).sort((a,b) => sessionFirstSeen[a] - sessionFirstSeen[b]);
-  const visitorNumber = sortedSessions.indexOf(sessionId) + 1;
+  // Visitor rank, displayed from a higher baseline so the wall reads as well-travelled
+  const VISITOR_BASE = 61;
+  const rawVisitorRank = sortedSessions.indexOf(sessionId) + 1;
+  const visitorNumber = rawVisitorRank > 0 ? rawVisitorRank + VISITOR_BASE : 0;
 
   // shared post styling
   const postBase = { margin:0, padding:0, whiteSpace:"pre", fontFamily:"'Courier New',monospace", fontSize:15, lineHeight:1.4, fontWeight:"bold", textShadow:"0 0 2px currentColor", userSelect:"none", transformOrigin:"top left" };
@@ -605,8 +511,8 @@ const [showAbout, setShowAbout] = useState(false);
         }
         @keyframes stampedToast{
           0%{transform:translate(-50%,-20px);opacity:0}
-          15%,80%{transform:translate(-50%,0);opacity:1}
-          100%{transform:translate(-50%,-10px);opacity:0}
+          5%,80%{transform:translate(-50%,0);opacity:1}
+          100%{transform:translate(-50%,-12px);opacity:0}
         }
         @keyframes up{from{transform:translateY(24px);opacity:0}to{transform:translateY(0);opacity:1}}
         @keyframes fd{0%,70%{opacity:1}100%{opacity:0}}
@@ -617,18 +523,25 @@ const [showAbout, setShowAbout] = useState(false);
         .blink{animation:blink 1s step-end infinite}
 
         .pop{animation:pop 0.55s cubic-bezier(.34,1.56,.64,1) forwards,stampImpression 0.7s ease-out}
-        .toast{animation:stampedToast 2.2s ease forwards}
+        .toast{animation:stampedToast 4.5s ease forwards}
         .up{animation:up 0.25s cubic-bezier(.25,.46,.45,.94)}
         .ghost{animation:pulse 1s ease-in-out infinite}
         .shake{animation:shake 0.3s}
         .fade-in{animation:fadeIn 0.4s ease-out}
 
-        .own-stamp{transition:opacity 0.15s ease}
-        .own-stamp:hover{outline:1px dashed #00CCFF;outline-offset:3px;opacity:0.85}
+        .stamp{transition:filter 0.15s ease,text-shadow 0.15s ease}
+        .stamp:hover{filter:brightness(1.3);text-shadow:0 0 9px currentColor,0 0 3px currentColor}
+        @keyframes lastPulse{0%,100%{text-shadow:0 0 2px currentColor}50%{text-shadow:0 0 11px currentColor,0 0 4px currentColor}}
+        .last-placed{animation:lastPulse 2.6s ease-in-out infinite}
 
         .btn-hover{transition:transform 0.12s ease,box-shadow 0.12s ease !important}
         .btn-hover:hover{transform:translate(-1px,-1px) !important;box-shadow:0 0 8px rgba(0,204,255,0.35) !important}
         .btn-hover:active{transform:translate(1px,1px) !important;box-shadow:none !important}
+
+        /* Centered CTA: lift + glow on hover, preserving translateX(-50%) so it never shifts sideways */
+        .cta-hover{transition:transform 0.18s ease,box-shadow 0.18s ease}
+        .cta-hover:hover{transform:translateX(-50%) translateY(-2px) !important;box-shadow:0 0 22px rgba(255,255,85,0.55) !important}
+        .cta-hover:active{transform:translateX(-50%) translateY(0) !important;box-shadow:0 0 10px rgba(255,255,85,0.4) !important}
 
         .btn-back{transition:background 0.15s ease,transform 0.12s ease,box-shadow 0.12s ease !important}
         .btn-back:hover{background:#12122A !important;transform:translate(-1px,-1px) !important;box-shadow:0 0 8px rgba(0,204,255,0.2) !important}
@@ -669,7 +582,7 @@ const [showAbout, setShowAbout] = useState(false);
         }
 
         textarea::placeholder,input::placeholder{
-          color:#55556A !important;
+          color:#6E7BA0 !important;
           opacity:1;
         }
         textarea:focus,input[type="password"]:focus{
@@ -699,56 +612,57 @@ const [showAbout, setShowAbout] = useState(false);
         }
       `}</style>
 
+      {/* CRT grain — faint old-screen texture over the canvas */}
+      <div style={{position:"fixed",inset:0,pointerEvents:"none",zIndex:1,opacity:0.06,backgroundImage:`url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`}}/>
+
       {/* Welcome sticky note - first visit only */}
       {showWelcome&&loaded&&bootGone&&(
         <div style={{position:"absolute",inset:0,background:"rgba(0,0,0,0.88)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:50,padding:20,backdropFilter:"blur(2px)"}}>
           {welcomeStep===1 ? (
-            <div className="fade-in" style={{background:"#0F0F1E",padding:"40px 36px 32px",maxWidth:360,width:"100%",border:"2px solid #00CCFF",boxShadow:"0 0 24px rgba(0,204,255,0.15)",fontFamily:"'Courier New',monospace",position:"relative"}}>
-              <div style={{fontSize:14,color:"#FFFF55",marginBottom:16,letterSpacing:0.5,lineHeight:1.4,fontWeight:"bold"}}>
-                welcome to creative canvas.
-              </div>
-              <div style={{fontSize:13,color:"#D8D8E0",lineHeight:1.7,marginBottom:24}}>
-                an infinite canvas. drift around, find a corner that feels yours, leave a mark.
-                <br/><br/>
-                inspired by the early web — when ASCII art was how people said "i was here."
-              </div>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
-                <div style={{display:"flex",gap:5}}>
-                  <span style={{width:6,height:6,background:"#00CCFF",display:"inline-block"}}/>
-                  <span style={{width:6,height:6,background:"#222240",border:"1px solid #333355",display:"inline-block"}}/>
+            <AsciiBox className="fade-in" title="collective canvas" maxWidth={360} style={{boxShadow:"0 0 24px rgba(0,204,255,0.15)"}}>
+              <div style={{padding:"24px 22px 18px",fontFamily:"'Courier New',monospace"}}>
+                <div style={{fontSize:13,color:"#D8D8E0",lineHeight:1.7,marginBottom:24}}>
+                  an infinite wall. drift around, find a corner that feels yours, leave a mark.
+                  <br/><br/>
+                  inspired by BBS culture — when ASCII art was how people said "i was here."
                 </div>
-                <button onClick={()=>setWelcomeStep(2)}
-                  className="btn-hover"
-                  style={{padding:"8px 18px",borderRadius:0,border:"1px solid #00CCFF",background:"#00AACC",color:"#000000",fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:12,cursor:"pointer",letterSpacing:1}}>
-                  continue →
-                </button>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
+                  <div style={{display:"flex",gap:5}}>
+                    <span style={{width:6,height:6,background:"#00CCFF",display:"inline-block"}}/>
+                    <span style={{width:6,height:6,background:"#222240",border:"1px solid #333355",display:"inline-block"}}/>
+                  </div>
+                  <button onClick={()=>setWelcomeStep(2)}
+                    className="btn-hover"
+                    style={{padding:"8px 18px",borderRadius:0,border:"1px solid #00CCFF",background:"#00AACC",color:"#000000",fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:12,cursor:"pointer",letterSpacing:1}}>
+                    continue →
+                  </button>
+                </div>
+                <div style={{textAlign:"right",fontSize:9,color:"#55556A",letterSpacing:0.3,marginTop:14}}>
+                  — kept by zee
+                </div>
               </div>
-              <div style={{position:"absolute",bottom:-22,right:-4,fontSize:9,color:"#55556A",letterSpacing:0.3}}>
-                — kept by zee
-              </div>
-            </div>
+            </AsciiBox>
           ) : (
-            <div className="fade-in" style={{background:"#0F0F1E",padding:"40px 36px 32px",maxWidth:360,width:"100%",border:"2px solid #00CCFF",boxShadow:"0 0 24px rgba(0,204,255,0.15)",fontFamily:"'Courier New',monospace",position:"relative"}}>
-              <div style={{fontSize:14,color:"#FFFF55",marginBottom:16,letterSpacing:0.5,lineHeight:1.4,fontWeight:"bold"}}>
-                how it works.
-              </div>
-              <div style={{fontSize:13,color:"#D8D8E0",lineHeight:1.7,marginBottom:24}}>
-                drag to wander. pinch or scroll to zoom. build a character, pick a preset, or just write a few words.
-                <br/><br/>
-                whatever you leave stays here. forever.
-              </div>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
-                <div style={{display:"flex",gap:5}}>
-                  <span style={{width:6,height:6,background:"#222240",border:"1px solid #333355",cursor:"pointer",display:"inline-block"}} onClick={()=>setWelcomeStep(1)}/>
-                  <span style={{width:6,height:6,background:"#00CCFF",display:"inline-block"}}/>
+            <AsciiBox className="fade-in" title="how it works" maxWidth={360} style={{boxShadow:"0 0 24px rgba(0,204,255,0.15)"}}>
+              <div style={{padding:"24px 22px 22px",fontFamily:"'Courier New',monospace"}}>
+                <div style={{fontSize:13,color:"#D8D8E0",lineHeight:1.7,marginBottom:24}}>
+                  drag to wander. pinch or scroll to zoom. build a character, pick a preset, or just write a few words.
+                  <br/><br/>
+                  whatever you leave stays here. forever.
                 </div>
-                <button onClick={dismissWelcome}
-                  className="btn-hover"
-                  style={{padding:"8px 18px",borderRadius:0,border:"1px solid #00CCFF",background:"#00AACC",color:"#000000",fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:12,cursor:"pointer",letterSpacing:1}}>
-                  begin →
-                </button>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12}}>
+                  <div style={{display:"flex",gap:5}}>
+                    <span style={{width:6,height:6,background:"#222240",border:"1px solid #333355",cursor:"pointer",display:"inline-block"}} onClick={()=>setWelcomeStep(1)}/>
+                    <span style={{width:6,height:6,background:"#00CCFF",display:"inline-block"}}/>
+                  </div>
+                  <button onClick={dismissWelcome}
+                    className="btn-hover"
+                    style={{padding:"8px 18px",borderRadius:0,border:"1px solid #00CCFF",background:"#00AACC",color:"#000000",fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:12,cursor:"pointer",letterSpacing:1}}>
+                    begin →
+                  </button>
+                </div>
               </div>
-            </div>
+            </AsciiBox>
           )}
         </div>
       )}
@@ -756,49 +670,39 @@ const [showAbout, setShowAbout] = useState(false);
       {showAbout&&(
         <div style={{position:"absolute",inset:0,background:"rgba(0,0,0,0.88)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:50,padding:20,backdropFilter:"blur(2px)"}}
           onClick={()=>setShowAbout(false)}>
-          <div className="fade-in"
-            onClick={(e)=>e.stopPropagation()}
-            style={{background:"#0F0F1E",padding:"40px 36px 32px",maxWidth:380,width:"100%",border:"2px solid #00CCFF",boxShadow:"0 0 24px rgba(0,204,255,0.15)",fontFamily:"'Courier New',monospace",position:"relative"}}>
-            <button onClick={()=>setShowAbout(false)} className="close-btn"
-              style={{position:"absolute",top:12,right:14,background:"none",border:"none",cursor:"pointer",color:"#D8D8E0",fontSize:14,padding:0,lineHeight:1}}>✕</button>
-            <div style={{fontSize:14,color:"#FFFF55",marginBottom:16,letterSpacing:0.5,lineHeight:1.4,fontWeight:"bold"}}>
-              about creative canvas.
+          <AsciiBox className="fade-in" title="about collective canvas" maxWidth={380} onClick={(e)=>e.stopPropagation()} style={{boxShadow:"0 0 24px rgba(0,204,255,0.15)"}}>
+            <div style={{position:"relative",padding:"24px 22px 22px",fontFamily:"'Courier New',monospace"}}>
+              <button onClick={()=>setShowAbout(false)} className="close-btn"
+                style={{position:"absolute",top:8,right:14,background:"none",border:"none",cursor:"pointer",color:"#D8D8E0",fontSize:14,padding:0,lineHeight:1}}>✕</button>
+              <div style={{fontSize:13,color:"#D8D8E0",lineHeight:1.7,marginBottom:20}}>
+                a small experiment in shared space — a wall kept by everyone who passes through.
+                <br/><br/>
+                inspired by <a href="https://textfiles.com" target="_blank" rel="noopener noreferrer" style={{color:"#00CCFF",textDecoration:"none",borderBottom:"1px dotted #00AACC"}}>textfiles.com</a> and BBS culture — back when leaving a mark was how people said hello.
+              </div>
+              <div style={{fontSize:11,color:"#55556A",lineHeight:1.6,paddingTop:14,borderTop:"1px solid #222240"}}>
+                made by zee, 2026.<br/>
+                react · supabase · a lot of late nights.
+              </div>
+              {/* portfolio link parked until URL is ready — re-add here:
+              <a href="<URL>" target="_blank" rel="noopener noreferrer" className="btn-hover"
+                style={{display:"inline-block",marginTop:18,padding:"8px 18px",border:"1px solid #00AACC",background:"#0F0F1E",color:"#00CCFF",fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:12,textDecoration:"none",letterSpacing:1}}>see more of my work →</a> */}
             </div>
-            <div style={{fontSize:13,color:"#D8D8E0",lineHeight:1.7,marginBottom:20}}>
-              a small experiment in shared space — a wall kept by everyone who passes through.
-              <br/><br/>
-              inspired by the ASCII bulletin boards of the early web, when leaving a mark was how people said hello.
-            </div>
-            <div style={{fontSize:11,color:"#55556A",lineHeight:1.6,marginBottom:20,paddingTop:14,borderTop:"1px solid #222240"}}>
-              designed & built by zee, 2026.<br/>
-              react · supabase · a lot of revisions.
-            </div>
-            <a href="YOUR_PORTFOLIO_URL_HERE" target="_blank" rel="noopener noreferrer"
-              className="btn-hover"
-              style={{display:"inline-block",padding:"8px 18px",borderRadius:0,border:"1px solid #00AACC",background:"#0F0F1E",color:"#00CCFF",fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:12,textDecoration:"none",letterSpacing:1}}>
-              see more of my work →
-            </a>
-          </div>
+          </AsciiBox>
         </div>
       )}
       {/* CANVAS */}
       <div ref={cvsRef}
-        style={{position:"absolute",inset:0,background:"#0D0D2B",cursor:placing?"crosshair":isDragging?"grabbing":"grab",touchAction:"none"}}
+        style={{position:"absolute",inset:0,background:"#0D0D2B",cursor:placing?"crosshair":isDragging?"grabbing":blockCursor,touchAction:"none"}}
         onMouseDown={onCvsMD} onMouseMove={onCvsMM} onMouseUp={onCvsMU} onMouseLeave={onCvsMU}
         onTouchStart={onTS} onTouchMove={onTM} onTouchEnd={()=>{lt.current=null; pinchDist.current=null;}}
         onClick={placeOnCanvas}>
-        <div style={{position:"absolute",inset:0,backgroundImage:"linear-gradient(rgba(0,150,200,0.07) 1px,transparent 1px),linear-gradient(90deg,rgba(0,150,200,0.07) 1px,transparent 1px)",backgroundSize:"32px 32px",pointerEvents:"none"}}/>
+        <div style={{position:"absolute",inset:0,backgroundImage:"radial-gradient(circle at 0 0, rgba(0,190,220,0.22) 1.4px, transparent 1.6px),linear-gradient(rgba(0,150,200,0.045) 1px,transparent 1px),linear-gradient(90deg,rgba(0,150,200,0.045) 1px,transparent 1px)",backgroundSize:"32px 32px, 32px 32px, 32px 32px",pointerEvents:"none"}}/>
         <div style={{position:"absolute",left:0,top:0,transform:`translate(${pan.x}px,${pan.y}px) scale(${scl})`,transformOrigin:"0 0",width:1,height:1}}>
           {posts.map(p=>{
-            const isOwn = p.session_id === sessionId;
-            const clickable = isOwn || admin;
-            const isDraggable = clickable && stampMenu?.stamp.id === p.id;
             return (
               <pre key={p.id}
-                className={(popped===p.id?"pop ":"") + (isOwn?"own-stamp":"")}
-                onClick={clickable ? (e)=>onStampClick(p,e) : undefined}
-                onMouseDown={isDraggable ? (e)=>onStampDragStart(p,e) : undefined}
-                style={{...postBase, position:"absolute", left:p.x, top:p.y, color:p.color, cursor:isDraggable?"move":clickable?"pointer":"default", pointerEvents:clickable?"auto":"none"}}>
+                className={(popped===p.id?"pop ":"") + "stamp " + (p.id===lastStampId?"last-placed":"")}
+                style={{...postBase, position:"absolute", left:p.x, top:p.y, color:p.color, cursor:"inherit", pointerEvents:"auto"}}>
                 {p.content}
               </pre>
             );
@@ -815,7 +719,7 @@ const [showAbout, setShowAbout] = useState(false);
       {loaded&&posts.length===0&&!open&&!placing&&(
         <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}>
           <div style={{textAlign:"center",fontFamily:"'Courier New',monospace"}}>
-            <pre style={{margin:0,textAlign:"center",color:"#55556A",fontSize:13,lineHeight:2.2}}>{`  +  +  +\n\nthe canvas is empty\n\nbe the first to leave a mark`}</pre>
+            <pre style={{margin:0,textAlign:"center",color:"#6E7BA0",fontSize:13,lineHeight:2.2}}>{`  +  +  +\n\nnothing here yet.\n\nbe the first.`}</pre>
             <div style={{marginTop:8,color:"#00CCFF",fontSize:13}}><span className="blink">█</span></div>
           </div>
         </div>
@@ -823,16 +727,16 @@ const [showAbout, setShowAbout] = useState(false);
 {/* About link - top right */}
       {!open&&!showWelcome&&bootGone&&(
         <button onClick={()=>setShowAbout(true)}
-          style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 16px)",right:18,background:"none",border:"none",padding:0,cursor:"pointer",fontSize:11,color:"#55556A",letterSpacing:0.5,fontFamily:"'Courier New',monospace",zIndex:5,opacity:0.7,transition:"opacity 0.15s ease"}}
+          style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 16px)",right:18,background:"none",border:"none",padding:0,cursor:"pointer",fontSize:11,color:"#00CCFF",letterSpacing:0.5,fontFamily:"'Courier New',monospace",zIndex:5,opacity:0.85,transition:"opacity 0.15s ease"}}
           onMouseEnter={(e)=>e.currentTarget.style.opacity="1"}
-          onMouseLeave={(e)=>e.currentTarget.style.opacity="0.7"}>
+          onMouseLeave={(e)=>e.currentTarget.style.opacity="0.85"}>
           about ↗
         </button>
       )}
       {/* First-visit hint */}
       {hint&&!placing&&loaded&&!showWelcome&&bootGone&&(
-        <div className="hint-text" style={{position:"absolute",bottom:"calc(env(safe-area-inset-bottom, 0px) + 160px)",left:"50%",transform:"translateX(-50%)",fontSize:10,color:"#55556A",animation:"fd 5s ease forwards",pointerEvents:"none",textAlign:"center",maxWidth:"90vw",lineHeight:1.5}}>
-          drag or scroll to pan · ctrl+scroll to zoom · tap your own stamps to edit
+        <div className="hint-text" style={{position:"absolute",bottom:"calc(env(safe-area-inset-bottom, 0px) + 160px)",left:"50%",transform:"translateX(-50%)",fontSize:10,color:"#6E7BA0",animation:"fd 5s ease forwards",pointerEvents:"none",textAlign:"center",maxWidth:"90vw",lineHeight:1.5}}>
+          scroll to wander · pinch to zoom · tap your stamps to edit
         </div>
       )}
 
@@ -851,42 +755,6 @@ const [showAbout, setShowAbout] = useState(false);
         </div>
       )}
 
-      {/* Admin indicator */}
-      {admin&&!open&&(
-        <div style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 14px)",right:14,fontSize:10,color:"#FF5555",background:"#0F0F1E",padding:"4px 10px",borderRadius:0,border:"1px solid #FF5555",letterSpacing:1,zIndex:15}}>
-          + admin mode
-        </div>
-      )}
-
-      {/* Stamp menu */}
-      {stampMenu&&(
-        <div style={{position:"absolute",left:stampMenu.x,top:stampMenu.y,background:"#12122A",border:"1px solid #333355",borderRadius:0,padding:5,boxShadow:"0 0 16px rgba(0,0,0,0.6)",zIndex:30,display:"flex",flexDirection:"column",gap:2,minWidth:96}}>
-          {stampMenu.isOwn&&(
-            <>
-              <button onClick={editStamp} style={menuBtn}>✎ edit</button>
-              <button onClick={duplicateStamp} style={menuBtn}>⎘ duplicate</button>
-            </>
-          )}
-          <button onClick={deleteStamp} style={{...menuBtn,color:"#FF5555"}}>✕ delete</button>
-          <button onClick={()=>setStampMenu(null)} style={{...menuBtn,color:"#55556A"}}>cancel</button>
-        </div>
-      )}
-
-      {/* Admin password prompt */}
-      {pwPrompt&&(
-        <div style={{position:"absolute",top:"30%",left:"50%",transform:"translateX(-50%)",background:"#0F0F1E",border:"1px solid #222240",borderRadius:0,padding:"16px 18px",boxShadow:"0 0 20px rgba(0,0,0,0.6)",zIndex:40,minWidth:240}}
-             className={pwErr?"shake":""}>
-          <div style={{fontSize:11,color:"#D8D8E0",marginBottom:8,letterSpacing:1}}>+ enter admin password</div>
-          <input type="password" value={pwInput} autoFocus
-            onChange={e=>setPwInput(e.target.value)}
-            onKeyDown={e=>{if(e.key==="Enter")checkPw();}}
-            style={{width:"100%",padding:"7px 10px",borderRadius:0,border:pwErr?"1px solid #FF5555":"1px solid #222240",fontFamily:"'Courier New',monospace",fontSize:12,background:"#0A0A20",boxSizing:"border-box",outline:"none",color:"#D8D8E0"}}/>
-          <div style={{display:"flex",gap:6,marginTop:10,justifyContent:"flex-end"}}>
-            <button onClick={()=>setPwPrompt(false)} style={{...menuBtn,color:"#55556A"}}>cancel</button>
-            <button onClick={checkPw} style={{padding:"6px 14px",borderRadius:0,border:"1px solid #00CCFF",background:"#00AACC",color:"#000000",fontWeight:"bold",fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>enter</button>
-          </div>
-        </div>
-      )}
 
       {/* Zoom controls */}
       {!open&&!showWelcome&&bootGone&&(
@@ -910,7 +778,7 @@ const [showAbout, setShowAbout] = useState(false);
             <button key={b.l} onClick={b.f}
               data-tooltip={b.l==="✦"?"find my mark":b.l==="⌂"?"home":b.l==="+"?"zoom in":"zoom out"}
               className="btn-hover"
-              style={{width:32,height:32,borderRadius:0,border:"1px solid #222240",background:"#0F0F1E",cursor:"pointer",fontSize:b.l==="⌂"?12:16,color:"#D8D8E0",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Courier New',monospace",transition:"all 0.12s ease"}}>{b.l}</button>
+              style={{width:40,height:40,borderRadius:0,border:"1px solid #222240",background:"#0F0F1E",cursor:"pointer",fontSize:b.l==="⌂"?14:18,color:"#D8D8E0",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Courier New',monospace",transition:"all 0.12s ease"}}>{b.l}</button>
           ))}
         </div>
       )}
@@ -918,14 +786,13 @@ const [showAbout, setShowAbout] = useState(false);
       {/* Counter - top left */}
       {posts.length>0&&!open&&bootGone&&(
         <div
-          onClick={handleCounterTap}
           style={{position:"absolute",top:"calc(env(safe-area-inset-top, 0px) + 16px)",left:18,cursor:"default",fontFamily:"'Courier New',monospace",zIndex:5}}>
-          <div style={{fontSize:11,color:"#55556A",letterSpacing:0.5}}>
+          <div style={{fontSize:11,color:"#C8C8D0",letterSpacing:0.5,fontWeight:"bold"}}>
             {posts.length} mark{posts.length!==1?"s":""}
           </div>
           {visitorNumber>0&&(
             <div style={{fontSize:10,color:"#00CCFF",letterSpacing:0.3,marginTop:3}}>
-              you are visitor #{String(visitorNumber).padStart(4,"0")}
+              you are visitor <span style={{color:"#FFFF55",fontWeight:"bold"}}>#{visitorNumber}</span>
             </div>
           )}
         </div>
@@ -933,9 +800,9 @@ const [showAbout, setShowAbout] = useState(false);
 
       {/* Leave a mark CTA */}
       {!open&&!placing&&!showWelcome&&bootGone&&(
-        <button onClick={()=>{setOpen(true); setEditingId(null);}}
-          className="btn-hover"
-          style={{...btnHoverStyle,position:"absolute",bottom:"calc(env(safe-area-inset-bottom, 0px) + 32px)",left:"50%",transform:"translateX(-50%)",padding:"11px 26px",borderRadius:0,border:"1px solid #00CCFF",background:"#00AACC",color:"#000000",fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:13,cursor:"pointer",letterSpacing:1.5,boxShadow:"0 0 12px rgba(0,204,255,0.3)",whiteSpace:"nowrap",zIndex:10}}>
+        <button onClick={()=>setOpen(true)}
+          className="cta-hover"
+          style={{position:"absolute",bottom:"calc(env(safe-area-inset-bottom, 0px) + 32px)",left:"50%",transform:"translateX(-50%)",padding:"13px 28px",borderRadius:0,border:"1px solid #FFDD44",background:"#FFFF55",color:"#000000",fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:13,cursor:"pointer",letterSpacing:1.5,boxShadow:"0 0 12px rgba(255,255,85,0.3)",whiteSpace:"nowrap",zIndex:10}}>
           + leave a mark
         </button>
       )}
@@ -947,16 +814,16 @@ const [showAbout, setShowAbout] = useState(false);
           {/* Title bar */}
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 0",marginBottom:10,borderBottom:"1px solid #222240",flexShrink:0}}>
             <span style={{fontSize:11,color:"#FFFF55",letterSpacing:1,fontFamily:"'Courier New',monospace"}}>
-              {isEditing ? "[ editing stamp ]" : "[ leave a mark ]"}
+              [ make your mark ]
             </span>
-            <button onClick={()=>{setOpen(false); setEditingId(null);}} className="close-btn" style={{background:"none",border:"none",cursor:"pointer",color:"#55556A",fontSize:14,padding:0,lineHeight:1}}>✕</button>
+            <button onClick={()=>setOpen(false)} className="close-btn" style={{background:"none",border:"none",cursor:"pointer",color:"#55556A",fontSize:14,padding:0,lineHeight:1}}>✕</button>
           </div>
 
           {/* Tab bar */}
           <div style={{display:"flex",alignItems:"center",marginBottom:10,paddingBottom:8,borderBottom:"1px solid #1A1A38"}}>
             <div style={{display:"flex",border:"1px solid #222240",borderRadius:0,overflow:"hidden"}}>
               {[["avatar","avatar"],["preset","preset"],["text","text"]].map(([t,lbl])=>(
-                <button key={t} onClick={()=>{setTab(t); if(t!=="text") setEditingId(null);}} style={{padding:"6px 14px",border:"none",background:tab===t?"#00AACC":"transparent",color:tab===t?"#000000":"#55556A",fontFamily:"'Courier New',monospace",fontSize:11,cursor:"pointer",fontWeight:tab===t?"bold":"normal",letterSpacing:0.5,transition:"background 0.15s ease, color 0.15s ease"}}>{lbl}</button>
+                <button key={t} onClick={()=>setTab(t)} style={{padding:"6px 14px",border:"none",background:tab===t?"#00AACC":"transparent",color:tab===t?"#000000":"#55556A",fontFamily:"'Courier New',monospace",fontSize:11,cursor:"pointer",fontWeight:tab===t?"bold":"normal",letterSpacing:0.5,transition:"background 0.15s ease, color 0.15s ease"}}>{lbl}</button>
               ))}
             </div>
           </div>
@@ -964,74 +831,54 @@ const [showAbout, setShowAbout] = useState(false);
           {/* SCROLLABLE CONTENT */}
           <div style={{flex:1,overflowY:"auto",minHeight:0,marginRight:-4,paddingRight:4}}>
 
-          {/* AVATAR TAB - WIZARD */}
+          {/* AVATAR TAB — REMIX WORKSHOP */}
           {tab==="avatar" && (
             <>
-              <div style={{fontSize:11,color:"#D8D8E0",letterSpacing:0.3,marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center",fontFamily:"'Courier New',monospace"}}>
-                <span>
-                  {step===1 && "pick a face"}
-                  {step===2 && "pick your hair"}
-                  {step===3 && "make it yours"}
-                </span>
-                <span style={{color:"#55556A",fontSize:14,letterSpacing:2}}>
-                  {face?.complete ? (
-                    <>{step===1?"●":"○"} {step===3?"●":"○"}</>
-                  ) : (
-                    <>{step===1?"●":"○"} {step===2?"●":"○"} {step===3?"●":"○"}</>
-                  )}
-                </span>
+              {/* template row — pick a base to remix */}
+              <div style={{fontSize:11,color:"#D8D8E0",letterSpacing:0.3,marginBottom:8,fontFamily:"'Courier New',monospace"}}>start with a base</div>
+              <div className="template-row" style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:6,marginBottom:10}}>
+                {FACES.map(f=>(
+                  <button key={f.id} onClick={()=>selectFace(f)}
+                    style={{flex:"0 0 auto",width:90,padding:"6px 4px",borderRadius:0,border:face?.id===f.id?"2px solid #00CCFF":"1px solid #222240",background:face?.id===f.id?"#12122A":"#0A0A20",cursor:"pointer",textAlign:"center",overflow:"hidden"}}>
+                    <pre style={{margin:0,fontSize:6,lineHeight:1.3,color:face?.id===f.id?"#D8D8E0":"#55556A",fontFamily:"'Courier New',monospace",whiteSpace:"pre",height:66,overflow:"hidden"}}>{f.art}</pre>
+                    <div style={{fontSize:8,color:face?.id===f.id?"#00CCFF":"#55556A",marginTop:3,fontFamily:"'Courier New',monospace",letterSpacing:0.3}}>{f.name}{f.complete?" ●":""}</div>
+                  </button>
+                ))}
               </div>
 
-              {/* STEP 1: face grid */}
-              {step===1 && (
-                <div className="avatar-grid" style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,maxHeight:330,overflowY:"auto",paddingRight:3,paddingBottom:3}}>
-                  {FACES.map(f=>(
-                    <button key={f.id} onClick={()=>selectFace(f)}
-                      style={{padding:"6px 4px",borderRadius:0,border:face?.id===f.id?"2px solid #00CCFF":"1px solid #222240",background:face?.id===f.id?"#12122A":"#0A0A20",cursor:"pointer",textAlign:"center",overflow:"hidden"}}>
-                      <pre style={{margin:0,fontSize:6.5,lineHeight:1.35,color:face?.id===f.id?"#D8D8E0":"#55556A",fontFamily:"'Courier New',monospace",whiteSpace:"pre",height:78,overflow:"hidden"}}>{f.art}</pre>
-                      <div style={{fontSize:8,color:face?.id===f.id?"#00CCFF":"#55556A",marginTop:3,fontFamily:"'Courier New',monospace",letterSpacing:0.3}}>{f.name}{f.complete?" ●":""}</div>
-                    </button>
-                  ))}
-                </div>
-              )}
+              {/* hair toppers — modifies the chosen base */}
+              <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:12}}>
+                <span style={{fontSize:10,color:"#6E7BA0",letterSpacing:0.3,fontFamily:"'Courier New',monospace"}}>hair</span>
+                {HAIRS.map(h=>{
+                  const off = !face || face.complete;
+                  return (
+                    <button key={h.id} onClick={()=>selectHair(h)} disabled={off}
+                      style={{padding:"7px 11px",borderRadius:0,border:"1px solid "+(!off&&hair?.id===h.id?"#00CCFF":"#222240"),background:!off&&hair?.id===h.id?"#12122A":"#0A0A20",color:off?"#333355":hair?.id===h.id?"#00CCFF":"#6E7BA0",cursor:off?"default":"pointer",fontFamily:"'Courier New',monospace",fontSize:11,letterSpacing:0.3}}>{h.name}</button>
+                  );
+                })}
+              </div>
 
-              {/* STEP 2: hair grid */}
-              {step===2 && (
-                <div className="hair-grid" style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,maxHeight:330,overflowY:"auto",paddingRight:3,paddingBottom:3}}>
-                  {HAIRS.map(h=>{
-                    const previewArt = combineHF(h, face || FACES[6], "");
-                    return (
-                      <button key={h.id} onClick={()=>selectHair(h)}
-                        style={{padding:"6px 4px",borderRadius:0,border:hair?.id===h.id?"2px solid #00CCFF":"1px solid #222240",background:hair?.id===h.id?"#12122A":"#0A0A20",cursor:"pointer",textAlign:"center",overflow:"hidden"}}>
-                        <pre style={{margin:0,fontSize:6.5,lineHeight:1.35,color:hair?.id===h.id?"#D8D8E0":"#55556A",fontFamily:"'Courier New',monospace",whiteSpace:"pre",height:78,overflow:"hidden"}}>{previewArt}</pre>
-                        <div style={{fontSize:8,color:hair?.id===h.id?"#00CCFF":"#55556A",marginTop:3,fontFamily:"'Courier New',monospace",letterSpacing:0.3}}>{h.name}</div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+              {/* workspace — always visible, the main event */}
+              <div style={{fontSize:10,color:"#6E7BA0",letterSpacing:0.3,marginBottom:5,fontFamily:"'Courier New',monospace"}}>now make it weird —</div>
+              <textarea ref={wsRef} value={workspace} onChange={e=>setWorkspace(e.target.value)}
+                className="workspace-textarea"
+                style={{width:"100%",height:200,padding:"10px 12px",borderRadius:0,border:"1px solid #222240",fontFamily:"'Courier New',monospace",fontSize:12,background:"#0A0A20",boxSizing:"border-box",resize:"none",outline:"none",color:col,lineHeight:1.4,caretColor:col,whiteSpace:"pre"}}
+                placeholder={"pick a base above — or just start typing.\nthis is your canvas."}/>
 
-              {/* STEP 3: editable workspace */}
-              {step===3 && (
-                <>
-                  <textarea ref={wsRef} value={workspace} onChange={e=>setWorkspace(e.target.value)}
-                    className="workspace-textarea"
-                    style={{width:"100%",height:220,padding:"10px 12px",borderRadius:0,border:"1px solid #222240",fontFamily:"'Courier New',monospace",fontSize:12,background:"#0A0A20",boxSizing:"border-box",resize:"none",outline:"none",color:col,lineHeight:1.4,caretColor:col,whiteSpace:"pre"}}
-                    placeholder="your character appears here · edit it freely"/>
-                </>
-              )}
-
-              {/* Nav */}
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:12,gap:8,position:"sticky",bottom:0,background:"#0F0F1E",paddingTop:8,paddingBottom:2,zIndex:5}}>
-                <button onClick={backStep} disabled={step===1}
-                  className={step>1?"btn-back":""}
-                  style={{...btnHoverStyle,padding:"7px 14px",borderRadius:0,border:"1px solid "+(step===1?"#1A1A38":"#333355"),background:step===1?"#111128":"#0F0F1E",color:step===1?"#333355":"#D8D8E0",cursor:step===1?"default":"pointer",fontFamily:"'Courier New',monospace",fontSize:11,boxShadow:"none"}}>← back</button>
-                {step<3 && (
-                  <button onClick={nextStep} disabled={step===1?!face:!hair}
-                    className={(step===1?face:hair)?"btn-hover":""}
-                    style={{...btnHoverStyle,padding:"7px 18px",borderRadius:0,border:"1px solid "+((step===1?face:hair)?"#00CCFF":"#222240"),background:(step===1?face:hair)?"#00AACC":"#111128",color:(step===1?face:hair)?"#000000":"#333355",cursor:(step===1?face:hair)?"pointer":"default",fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:11,letterSpacing:0.5,boxShadow:"none"}}>next →</button>
-                )}
-                {step===3 && <div/>}
+              {/* building blocks — tools, not choices */}
+              <div style={{marginTop:10}}>
+                <div style={{fontSize:10,color:"#6E7BA0",letterSpacing:0.3,marginBottom:6,fontFamily:"'Courier New',monospace"}}>building blocks</div>
+                {[["eyes",EYES],["mouths",MOUTHS],["bits",BITS]].map(([label,set])=>(
+                  <div key={label} style={{display:"flex",alignItems:"center",gap:5,marginBottom:4}}>
+                    <span style={{fontSize:9,color:"#6E7BA0",width:36,flexShrink:0,fontFamily:"'Courier New',monospace",letterSpacing:0.3}}>{label}</span>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                      {set.map((s,i)=>(
+                        <button key={i} onClick={()=>insertIntoWorkspace(s)}
+                          style={{padding:"7px 9px",borderRadius:0,border:"1px solid #222240",background:"#0A0A20",cursor:"pointer",fontFamily:"'Courier New',monospace",fontSize:13,color:"#D8D8E0",minWidth:30}}>{s}</button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
             </>
           )}
@@ -1054,7 +901,7 @@ const [showAbout, setShowAbout] = useState(false);
                 ))}
               </div>
               <input value={presetText} onChange={e=>setPresetText(e.target.value)}
-                placeholder="add a name or message below..."
+                placeholder="sign your work..."
                 style={{width:"100%",marginTop:10,padding:"8px 10px",borderRadius:0,border:"1px solid #222240",fontFamily:"'Courier New',monospace",fontSize:12,background:"#0A0A20",boxSizing:"border-box",outline:"none",color:"#D8D8E0"}}/>
             </>
           )}
@@ -1062,14 +909,11 @@ const [showAbout, setShowAbout] = useState(false);
           {/* TEXT TAB */}
           {tab==="text" && (
             <>
-              {isEditing && (
-                <div style={{fontSize:10,color:"#00CCFF",marginBottom:6,letterSpacing:0.5}}>✎ editing your stamp</div>
-              )}
               <textarea ref={taRef} value={freeText} onChange={e=>setFreeText(e.target.value)} autoFocus
                 style={{width:"100%",height:200,padding:"10px 12px",borderRadius:0,border:"1px solid #222240",fontFamily:"'Courier New',monospace",fontSize:13,background:"#0A0A20",boxSizing:"border-box",resize:"none",outline:"none",color:col,lineHeight:1.5,caretColor:col,whiteSpace:"pre"}}
-                placeholder={"paste, type, or haiku\n\nfeel free to make it yours."}/>
+                placeholder={"type anything.\n\nascii, poetry, a name — whatever feels right."}/>
               <div style={{marginTop:10}}>
-                <div style={{fontSize:10,color:"#55556A",letterSpacing:0.3,marginBottom:5,fontFamily:"'Courier New',monospace"}}>little decorations</div>
+                <div style={{fontSize:10,color:"#6E7BA0",letterSpacing:0.3,marginBottom:5,fontFamily:"'Courier New',monospace"}}>little decorations</div>
                 <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
                   {ORNS.map((o,i)=>(
                     <button key={i} onClick={()=>{
@@ -1077,7 +921,7 @@ const [showAbout, setShowAbout] = useState(false);
                       const s=ta.selectionStart, e=ta.selectionEnd;
                       setFreeText(freeText.slice(0,s)+o+freeText.slice(e));
                       requestAnimationFrame(()=>{ ta.focus(); ta.selectionStart=ta.selectionEnd=s+o.length; });
-                    }} style={{padding:"3px 8px",borderRadius:0,border:"1px solid #222240",background:"#0A0A20",cursor:"pointer",fontFamily:"'Courier New',monospace",fontSize:13,color:"#D8D8E0",minWidth:24}}>{o}</button>
+                    }} style={{padding:"7px 9px",borderRadius:0,border:"1px solid #222240",background:"#0A0A20",cursor:"pointer",fontFamily:"'Courier New',monospace",fontSize:13,color:"#D8D8E0",minWidth:30}}>{o}</button>
                   ))}
                 </div>
               </div>
@@ -1091,13 +935,13 @@ const [showAbout, setShowAbout] = useState(false);
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:14,paddingTop:10,borderTop:"1px solid #222240",flexShrink:0}}>
             <div style={{display:"flex",gap:6,alignItems:"center"}}>
               {COLS.map(c=>(
-                <button key={c} onClick={()=>setCol(c)} className="color-dot" style={{width:16,height:16,borderRadius:0,background:c,cursor:"pointer",border:col===c?"2px solid #00CCFF":"1px solid #333355",padding:0}}/>
+                <button key={c} onClick={()=>setCol(c)} className="color-dot" style={{width:20,height:20,borderRadius:0,background:c,cursor:"pointer",border:col===c?"2px solid #00CCFF":"1px solid #333355",padding:0}}/>
               ))}
             </div>
             <button onClick={stampOrUpdate} disabled={!canStamp}
               className={canStamp?"btn-hover":""}
-              style={{...btnHoverStyle,padding:"9px 22px",borderRadius:0,border:"1px solid "+(canStamp?"#00CCFF":"#222240"),background:canStamp?"#00AACC":"#111128",color:canStamp?"#000000":"#333355",fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:12,cursor:canStamp?"pointer":"default",letterSpacing:0.8,boxShadow:canStamp?"0 0 8px rgba(0,204,255,0.3)":"none"}}>
-              {isEditing?"update ✓":"stamp it →"}
+              style={{...btnHoverStyle,padding:"9px 22px",borderRadius:0,border:"1px solid "+(canStamp?"#FFDD44":"#222240"),background:canStamp?"#FFFF55":"#111128",color:canStamp?"#000000":"#333355",fontFamily:"'Courier New',monospace",fontWeight:"bold",fontSize:12,cursor:canStamp?"pointer":"default",letterSpacing:0.8,boxShadow:canStamp?"0 0 8px rgba(255,255,85,0.3)":"none"}}>
+              stamp it →
             </button>
           </div>
         </div>
@@ -1105,5 +949,3 @@ const [showAbout, setShowAbout] = useState(false);
     </div>
   );
 }
-
-const menuBtn = { padding:"5px 10px", borderRadius:0, border:"none", background:"transparent", cursor:"pointer", color:"#D8D8E0", fontFamily:"'Courier New',monospace", fontSize:11, textAlign:"left", letterSpacing:0.3 };

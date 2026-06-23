@@ -12,3 +12,7 @@ build
 *.log
 .env
 .env.local
+
+# Local tooling & internal design docs (keep out of the public repo)
+.claude
+collective-canvas.md.rtf
