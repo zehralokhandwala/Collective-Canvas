@@ -40,14 +40,23 @@ const PRESETS = [
   { name:"whale",   art:"       .\n      \":\"\n    ___:____     |\"\\/\"|\n  ,'        `.    \\  /\n  |  O        \\___/  |\n~^~^~^~^~^~^~^~^~^~^~^~^~" },
   { name:"cat",     art:" _._     _,-'\"\"`-._\n(,-.`._,'(       |\\`-/|\n    `-.-' \\ )-`( , o o)\n          `-    \\`_`\"'-" },
   { name:"sheep",   art:"        __  _\n    .-.'  `; `-._  __  _\n   (_,         .-:'  `; `-._\n ,'o\"(        (_,           )\n(__,-'      ,'o\"(            )>\n   (       (__,-'            )\n    `-'._.--._(             )\n       |||  |||`-'._.--._.-'\n                  |||  |||" },
+  { name:"flowers", art:"                    _\n                  _(_)_ \n      @@@@       (_)@(_)   vVVVv     _ \n     @@()@@ wWWWw  (_)\\    (___)   _(_)_\n      @@@@  (___)     `|/    Y    (_)@(_) \n       /      Y       \\|    \\|/    /(_)  \n    \\ |     \\ |/       | / \\ | /  \\|/  \n    \\\\|//   \\\\|///  \\\\\\|//\\\\\\|/// \\|///\n^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^" },
+  { name:"bird", art:"   (\n  `-`-.\n  '( @ >\n   _) (\n  /    )\n /_,'  /\n   \\  /\n===m\"\"m===" },
+  { name:"cocktail", art:"         .    ' .\n       '  .  \\~~~/\n      \\~~~/   \\_/\n       \\_/     Y\n        Y     _|_\n       _|_" },
+  { name:"car", art:"  ______\n /|_||_\\`.__\n(   _    _ _\\\n=`-(_)--(_)-' " },
+  { name:"moose", art:"      (_V__V_)\n        (oo)\n /-------\\/\n\"| _____||\n ||     ||\n  ^^     ^^" },
+  { name:"angel", art:"   ==\n<^\\()/^>\n \\/  \\/\n  /  \\\n  `''`" },
+  { name:"umbrella", art:"      ,.!.,\n   .'`     `'.\n .'           '.\n:.'`'..'`'..'`'.:\n `    ` |  `    `\n        |\n        |\n        |\n        O" },
+  { name:"phone", art:"       _______\n     /` _____ `\\;,\n    /__(^===^)__\\';,\n      /  :::  \\   ,;\n     |   :::   | ,;'\n     '._______.'`" },
 ];
 
 const ORNS = ["✿","❀","✾","❃","❁","✦","✧","★","☆","♡","♥","·","˚","°","⊹","≋","∿","~"];
 // Avatar workshop building blocks — tap to insert at cursor
 const EYES   = ["◉","●","○","◕","◔","⊙","°","˚","¬","x"];
 const MOUTHS = ["‿","◡","ω","︵","﹏","▽","ᴥ","_","o","3"];
-const BITS   = ["✦","★","♡","~","✧","☆","♥","·","ᕙ","ᕗ"];
 const COLS = ["#55FF55","#55FFFF","#FFFF55","#FF5555","#FF55FF","#5577FF","#FFFFFF","#FFAA00"];
+// which presets are animals (the rest go under "others"); faces are their own category and get hair
+const ANIMAL_PRESETS = ["cow","fish","whale","cat","sheep","bird","moose"];
 
 function combineHF(hair, face, textBelow) {
   if (!face) return "";
@@ -97,7 +106,6 @@ function AsciiBox({ children, color = "#00CCFF", titleColor = "#FFFF55", title, 
 
 export default function App() {
   const cvsRef = useRef(null);
-  const taRef  = useRef(null);
   const wsRef  = useRef(null);
   const [pan, setPan] = useState({x:0,y:0});
   const [scl, setScl] = useState(1);
@@ -120,15 +128,13 @@ export default function App() {
   const [hint, setHint] = useState(true);
 
   const [open, setOpen] = useState(false);
-  const [tab, setTab]   = useState("avatar");
 
   const [face, setFace] = useState(null);
   const [hair, setHair] = useState(null);
   const [workspace, setWorkspace] = useState("");
 
   const [preset, setPreset] = useState(null);
-  const [presetText, setPresetText] = useState("");
-  const [freeText, setFreeText] = useState("");
+  const [cat, setCat] = useState("faces");
   const [col, setCol] = useState(COLS[0]);
 
   const [placing, setPlacing] = useState(false);
@@ -409,13 +415,7 @@ const [showAbout, setShowAbout] = useState(false);
   }
 
   function getCurrentContent() {
-    if (tab === "avatar") return workspace.replace(/\s+$/, "");
-    if (tab === "preset") {
-      let out = preset?.art || "";
-      if (presetText.trim()) out += "\n" + presetText.trim();
-      return out.replace(/\s+$/, "");
-    }
-    return freeText.replace(/\s+$/, "");
+    return workspace.replace(/\s+$/, "");
   }
 
   function stampOrUpdate() {
@@ -423,11 +423,6 @@ const [showAbout, setShowAbout] = useState(false);
     if (!content.trim()) return;
     setPending({ id:`${Date.now()}-${Math.random().toString(36).slice(2,6)}`, content, color:col, ts:Date.now(), sessionId });
     setPlacing(true); setOpen(false);
-  }
-
-  function resetComposer() {
-    setFace(null); setHair(null); setWorkspace("");
-    setPreset(null); setPresetText(""); setFreeText("");
   }
 
   // Insert an ASCII building block at the cursor in the avatar workspace
@@ -440,14 +435,16 @@ const [showAbout, setShowAbout] = useState(false);
   }
 
   function selectFace(f) {
-    setFace(f);
-    const newWs = combineHF(hair, f, "");
-    setWorkspace(newWs);
+    setFace(f); setPreset(null);
+    setWorkspace(combineHF(hair, f, ""));
+  }
+  function selectPreset(p) {
+    setPreset(p); setFace(null); setHair(null);
+    setWorkspace(p.art);
   }
   function selectHair(h) {
     setHair(h);
-    const newWs = combineHF(h, face, "");
-    setWorkspace(newWs);
+    setWorkspace(combineHF(h, face, ""));
   }
   const canStamp = getCurrentContent().trim().length > 0;
 
@@ -677,7 +674,7 @@ const [showAbout, setShowAbout] = useState(false);
               <div style={{fontSize:13,color:"#D8D8E0",lineHeight:1.7,marginBottom:20}}>
                 a small experiment in shared space — a wall kept by everyone who passes through.
                 <br/><br/>
-                inspired by <a href="https://textfiles.com" target="_blank" rel="noopener noreferrer" style={{color:"#00CCFF",textDecoration:"none",borderBottom:"1px dotted #00AACC"}}>textfiles.com</a> and BBS culture — back when leaving a mark was how people said hello.
+                inspired by textfiles.com and BBS culture — back when leaving a mark was how people said hello.
               </div>
               <div style={{fontSize:11,color:"#55556A",lineHeight:1.6,paddingTop:14,borderTop:"1px solid #222240"}}>
                 made by zee, 2026.<br/>
@@ -760,7 +757,7 @@ const [showAbout, setShowAbout] = useState(false);
       {!open&&!showWelcome&&bootGone&&(
         <div style={{position:"absolute",bottom:"calc(env(safe-area-inset-bottom, 0px) + 90px)",right:18,display:"flex",flexDirection:"column",gap:5,zIndex:10}}>
           {[
-            ...(posts.filter(p=>p.session_id===sessionId).length>0 ? [{l:"✦",f:()=>{
+            ...(posts.filter(p=>p.session_id===sessionId).length>0 ? [{l:"pin",f:()=>{
               const mine = posts.filter(p=>p.session_id===sessionId);
               // Center on the most recent stamp from this session
               const latest = mine[mine.length - 1];
@@ -776,9 +773,15 @@ const [showAbout, setShowAbout] = useState(false);
             {l:"⌂",f:()=>{setPan({x:window.innerWidth/2, y:window.innerHeight/2});setScl(1);}}
           ].map(b=>(
             <button key={b.l} onClick={b.f}
-              data-tooltip={b.l==="✦"?"find my mark":b.l==="⌂"?"home":b.l==="+"?"zoom in":"zoom out"}
+              data-tooltip={b.l==="pin"?"find my mark":b.l==="⌂"?"home":b.l==="+"?"zoom in":"zoom out"}
               className="btn-hover"
-              style={{width:40,height:40,borderRadius:0,border:"1px solid #222240",background:"#0F0F1E",cursor:"pointer",fontSize:b.l==="⌂"?14:18,color:"#D8D8E0",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Courier New',monospace",transition:"all 0.12s ease"}}>{b.l}</button>
+              style={{width:40,height:40,borderRadius:0,border:"1px solid #222240",background:"#0F0F1E",cursor:"pointer",fontSize:b.l==="⌂"?14:18,color:"#D8D8E0",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"'Courier New',monospace",transition:"all 0.12s ease"}}>
+              {b.l==="pin" ? (
+                <svg viewBox="0 0 16 24" width="11" height="16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" style={{display:"block"}} aria-hidden="true">
+                  <circle cx="8" cy="6" r="4.3"/>
+                  <line x1="8" y1="10.3" x2="8" y2="21"/>
+                </svg>
+              ) : b.l}</button>
           ))}
         </div>
       )}
@@ -819,34 +822,38 @@ const [showAbout, setShowAbout] = useState(false);
             <button onClick={()=>setOpen(false)} className="close-btn" style={{background:"none",border:"none",cursor:"pointer",color:"#55556A",fontSize:14,padding:0,lineHeight:1}}>✕</button>
           </div>
 
-          {/* Tab bar */}
-          <div style={{display:"flex",alignItems:"center",marginBottom:10,paddingBottom:8,borderBottom:"1px solid #1A1A38"}}>
-            <div style={{display:"flex",border:"1px solid #222240",borderRadius:0,overflow:"hidden"}}>
-              {[["avatar","avatar"],["preset","preset"],["text","text"]].map(([t,lbl])=>(
-                <button key={t} onClick={()=>setTab(t)} style={{padding:"6px 14px",border:"none",background:tab===t?"#00AACC":"transparent",color:tab===t?"#000000":"#55556A",fontFamily:"'Courier New',monospace",fontSize:11,cursor:"pointer",fontWeight:tab===t?"bold":"normal",letterSpacing:0.5,transition:"background 0.15s ease, color 0.15s ease"}}>{lbl}</button>
-              ))}
-            </div>
-          </div>
-
           {/* SCROLLABLE CONTENT */}
           <div style={{flex:1,overflowY:"auto",minHeight:0,marginRight:-4,paddingRight:4}}>
 
-          {/* AVATAR TAB — REMIX WORKSHOP */}
-          {tab==="avatar" && (
-            <>
-              {/* template row — pick a base to remix */}
-              <div style={{fontSize:11,color:"#D8D8E0",letterSpacing:0.3,marginBottom:8,fontFamily:"'Courier New',monospace"}}>start with a base</div>
-              <div className="template-row" style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:6,marginBottom:10}}>
-                {FACES.map(f=>(
-                  <button key={f.id} onClick={()=>selectFace(f)}
-                    style={{flex:"0 0 auto",width:90,padding:"6px 4px",borderRadius:0,border:face?.id===f.id?"2px solid #00CCFF":"1px solid #222240",background:face?.id===f.id?"#12122A":"#0A0A20",cursor:"pointer",textAlign:"center",overflow:"hidden"}}>
-                    <pre style={{margin:0,fontSize:6,lineHeight:1.3,color:face?.id===f.id?"#D8D8E0":"#55556A",fontFamily:"'Courier New',monospace",whiteSpace:"pre",height:66,overflow:"hidden"}}>{f.art}</pre>
-                    <div style={{fontSize:8,color:face?.id===f.id?"#00CCFF":"#55556A",marginTop:3,fontFamily:"'Courier New',monospace",letterSpacing:0.3}}>{f.name}{f.complete?" ●":""}</div>
-                  </button>
-                ))}
-              </div>
+          {/* UNIFIED WORKSHOP — templates + workspace + insert palette */}
+          <>
+            {/* template gallery — grouped so it's clear hair is faces-only */}
+            <div style={{fontSize:11,color:"#D8D8E0",letterSpacing:0.3,marginBottom:8,fontFamily:"'Courier New',monospace"}}>start with a template — or just type below</div>
+            <div style={{display:"flex",gap:18,marginBottom:8}}>
+              {["faces","animals","others"].map(c=>(
+                <button key={c} onClick={()=>setCat(c)}
+                  style={{background:"none",border:"none",padding:"1px 0 4px",cursor:"pointer",fontFamily:"'Courier New',monospace",fontSize:11,letterSpacing:0.5,color:cat===c?"#00CCFF":"#6E7BA0",borderBottom:cat===c?"2px solid #00CCFF":"2px solid transparent",fontWeight:cat===c?"bold":"normal"}}>{c}</button>
+              ))}
+            </div>
+            <div className="template-row" style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:6,marginBottom:10}}>
+              {cat==="faces" && FACES.map(f=>(
+                <button key={f.id} onClick={()=>selectFace(f)}
+                  style={{flex:"0 0 auto",width:90,padding:"6px 4px",borderRadius:0,border:face?.id===f.id?"2px solid #00CCFF":"1px solid #222240",background:face?.id===f.id?"#12122A":"#0A0A20",cursor:"pointer",textAlign:"center",overflow:"hidden"}}>
+                  <pre style={{margin:0,fontSize:6,lineHeight:1.3,color:face?.id===f.id?"#D8D8E0":"#55556A",fontFamily:"'Courier New',monospace",whiteSpace:"pre",height:66,overflow:"hidden"}}>{f.art}</pre>
+                  <div style={{fontSize:8,color:face?.id===f.id?"#00CCFF":"#55556A",marginTop:3,fontFamily:"'Courier New',monospace",letterSpacing:0.3}}>{f.name}</div>
+                </button>
+              ))}
+              {cat!=="faces" && PRESETS.filter(p=>cat==="animals" ? ANIMAL_PRESETS.includes(p.name) : !ANIMAL_PRESETS.includes(p.name)).map((p,i)=>(
+                <button key={"p"+i} onClick={()=>selectPreset(p)}
+                  style={{flex:"0 0 auto",width:90,padding:"6px 4px",borderRadius:0,border:preset?.name===p.name?"2px solid #00CCFF":"1px solid #222240",background:preset?.name===p.name?"#12122A":"#0A0A20",cursor:"pointer",textAlign:"center",overflow:"hidden"}}>
+                  <pre style={{margin:0,fontSize:6,lineHeight:1.3,color:preset?.name===p.name?"#D8D8E0":"#55556A",fontFamily:"'Courier New',monospace",whiteSpace:"pre",height:66,overflow:"hidden"}}>{p.art}</pre>
+                  <div style={{fontSize:8,color:preset?.name===p.name?"#00CCFF":"#55556A",marginTop:3,fontFamily:"'Courier New',monospace",letterSpacing:0.3}}>{p.name}</div>
+                </button>
+              ))}
+            </div>
 
-              {/* hair toppers — modifies the chosen base */}
+            {/* hair toppers — faces only */}
+            {cat==="faces" && (
               <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:12}}>
                 <span style={{fontSize:10,color:"#6E7BA0",letterSpacing:0.3,fontFamily:"'Courier New',monospace"}}>hair</span>
                 {HAIRS.map(h=>{
@@ -857,76 +864,31 @@ const [showAbout, setShowAbout] = useState(false);
                   );
                 })}
               </div>
+            )}
 
-              {/* workspace — always visible, the main event */}
-              <div style={{fontSize:10,color:"#6E7BA0",letterSpacing:0.3,marginBottom:5,fontFamily:"'Courier New',monospace"}}>now make it weird —</div>
-              <textarea ref={wsRef} value={workspace} onChange={e=>setWorkspace(e.target.value)}
-                className="workspace-textarea"
-                style={{width:"100%",height:200,padding:"10px 12px",borderRadius:0,border:"1px solid #222240",fontFamily:"'Courier New',monospace",fontSize:12,background:"#0A0A20",boxSizing:"border-box",resize:"none",outline:"none",color:col,lineHeight:1.4,caretColor:col,whiteSpace:"pre"}}
-                placeholder={"pick a base above — or just start typing.\nthis is your canvas."}/>
+            {/* workspace — the one canvas */}
+            <div style={{fontSize:10,color:"#6E7BA0",letterSpacing:0.3,marginBottom:5,fontFamily:"'Courier New',monospace"}}>your canvas —</div>
+            <textarea ref={wsRef} value={workspace} onChange={e=>setWorkspace(e.target.value)}
+              className="workspace-textarea"
+              style={{width:"100%",height:200,padding:"10px 12px",borderRadius:0,border:"1px solid #222240",fontFamily:"'Courier New',monospace",fontSize:13,background:"#0A0A20",boxSizing:"border-box",resize:"none",outline:"none",color:col,lineHeight:1.4,caretColor:col,whiteSpace:"pre"}}
+              placeholder={"pick a template above, or just start typing.\nascii, a face, a message — whatever feels right."}/>
 
-              {/* building blocks — tools, not choices */}
-              <div style={{marginTop:10}}>
-                <div style={{fontSize:10,color:"#6E7BA0",letterSpacing:0.3,marginBottom:6,fontFamily:"'Courier New',monospace"}}>building blocks</div>
-                {[["eyes",EYES],["mouths",MOUTHS],["bits",BITS]].map(([label,set])=>(
-                  <div key={label} style={{display:"flex",alignItems:"center",gap:5,marginBottom:4}}>
-                    <span style={{fontSize:9,color:"#6E7BA0",width:36,flexShrink:0,fontFamily:"'Courier New',monospace",letterSpacing:0.3}}>{label}</span>
-                    <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-                      {set.map((s,i)=>(
-                        <button key={i} onClick={()=>insertIntoWorkspace(s)}
-                          style={{padding:"7px 9px",borderRadius:0,border:"1px solid #222240",background:"#0A0A20",cursor:"pointer",fontFamily:"'Courier New',monospace",fontSize:13,color:"#D8D8E0",minWidth:30}}>{s}</button>
-                      ))}
-                    </div>
+            {/* insert palette — eyes / mouths / decorations, tap to drop at cursor */}
+            <div style={{marginTop:10}}>
+              <div style={{fontSize:10,color:"#6E7BA0",letterSpacing:0.3,marginBottom:6,fontFamily:"'Courier New',monospace"}}>building blocks</div>
+              {[["eyes",EYES],["mouths",MOUTHS],["deco",ORNS]].map(([label,set])=>(
+                <div key={label} style={{display:"flex",alignItems:"flex-start",gap:5,marginBottom:4}}>
+                  <span style={{fontSize:9,color:"#6E7BA0",width:36,flexShrink:0,marginTop:7,fontFamily:"'Courier New',monospace",letterSpacing:0.3}}>{label}</span>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                    {set.map((s,i)=>(
+                      <button key={i} onClick={()=>insertIntoWorkspace(s)}
+                        style={{padding:"7px 9px",borderRadius:0,border:"1px solid #222240",background:"#0A0A20",cursor:"pointer",fontFamily:"'Courier New',monospace",fontSize:13,color:"#D8D8E0",minWidth:30}}>{s}</button>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </>
-          )}
-
-          {/* PRESET TAB */}
-          {tab==="preset" && (
-            <>
-              <div style={{background:"#0A0A20",borderRadius:0,padding:"12px 10px",marginBottom:12,minHeight:140,display:"flex",alignItems:"center",justifyContent:"center",border:"1px solid #222240"}}>
-                <pre style={{margin:0,fontSize:11,lineHeight:1.4,color:col,fontFamily:"'Courier New',monospace",whiteSpace:"pre"}}>
-                  {preset ? preset.art + (presetText.trim()?"\n"+presetText.trim():"") : "pick a preset below"}
-                </pre>
-              </div>
-              <div className="preset-grid" style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,maxHeight:200,overflowY:"auto",paddingRight:3,paddingBottom:3}}>
-                {PRESETS.map((p,i)=>(
-                  <button key={i} onClick={()=>setPreset(p)}
-                    style={{padding:"6px 4px",borderRadius:0,border:preset?.name===p.name?"2px solid #00CCFF":"1px solid #222240",background:preset?.name===p.name?"#12122A":"#0A0A20",cursor:"pointer",textAlign:"center",overflow:"hidden"}}>
-                    <pre style={{margin:0,fontSize:6,lineHeight:1.35,color:preset?.name===p.name?"#D8D8E0":"#55556A",fontFamily:"'Courier New',monospace",whiteSpace:"pre",height:62,overflow:"hidden"}}>{p.art}</pre>
-                    <div style={{fontSize:8,color:preset?.name===p.name?"#00CCFF":"#55556A",marginTop:3,fontFamily:"'Courier New',monospace",letterSpacing:0.3}}>{p.name}</div>
-                  </button>
-                ))}
-              </div>
-              <input value={presetText} onChange={e=>setPresetText(e.target.value)}
-                placeholder="sign your work..."
-                style={{width:"100%",marginTop:10,padding:"8px 10px",borderRadius:0,border:"1px solid #222240",fontFamily:"'Courier New',monospace",fontSize:12,background:"#0A0A20",boxSizing:"border-box",outline:"none",color:"#D8D8E0"}}/>
-            </>
-          )}
-
-          {/* TEXT TAB */}
-          {tab==="text" && (
-            <>
-              <textarea ref={taRef} value={freeText} onChange={e=>setFreeText(e.target.value)} autoFocus
-                style={{width:"100%",height:200,padding:"10px 12px",borderRadius:0,border:"1px solid #222240",fontFamily:"'Courier New',monospace",fontSize:13,background:"#0A0A20",boxSizing:"border-box",resize:"none",outline:"none",color:col,lineHeight:1.5,caretColor:col,whiteSpace:"pre"}}
-                placeholder={"type anything.\n\nascii, poetry, a name — whatever feels right."}/>
-              <div style={{marginTop:10}}>
-                <div style={{fontSize:10,color:"#6E7BA0",letterSpacing:0.3,marginBottom:5,fontFamily:"'Courier New',monospace"}}>little decorations</div>
-                <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
-                  {ORNS.map((o,i)=>(
-                    <button key={i} onClick={()=>{
-                      const ta=taRef.current; if(!ta){ setFreeText(t=>t+o); return; }
-                      const s=ta.selectionStart, e=ta.selectionEnd;
-                      setFreeText(freeText.slice(0,s)+o+freeText.slice(e));
-                      requestAnimationFrame(()=>{ ta.focus(); ta.selectionStart=ta.selectionEnd=s+o.length; });
-                    }} style={{padding:"7px 9px",borderRadius:0,border:"1px solid #222240",background:"#0A0A20",cursor:"pointer",fontFamily:"'Courier New',monospace",fontSize:13,color:"#D8D8E0",minWidth:30}}>{o}</button>
-                  ))}
                 </div>
-              </div>
-            </>
-          )}
+              ))}
+            </div>
+          </>
 
           {/* End scrollable content */}
           </div>
